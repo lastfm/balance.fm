@@ -1,0 +1,5 @@
+balance.fm (1.0.0) unstable; urgency=low
+
+  * Initial release, based on balance 3.54
+
+ -- Marcus Holland-Moritz <marcus@last.fm>  Tue, 07 Feb 2012 16:58:11 +0000

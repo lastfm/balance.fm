@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=1
+
+CFLAGS = -g -Wall -Wextra -Wstrict-prototypes -pedantic -std=gnu99
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	CFLAGS += -O0
+else
+	CFLAGS += -O2
+endif
+
+%:
+	dh $@

@@ -1,14 +1,12 @@
-# $Id: Makefile,v 1.12 2010/12/03 12:49:15 t Exp $
-
-#CFLAGS=-g -I.
-CFLAGS=-O2 -Wall -Wstrict-prototypes -Wuninitialized
+CFLAGS=-O0 -g -Wall -Wextra -Wstrict-prototypes -pedantic -std=gnu99
 
 # uncomment for any OS other than Cygwin
-BALANCE=balance
+BALANCE=balance.fm
 ROOT=root
 INSTALL=install
 BINDIR=/usr/sbin
 MANDIR=${BINDIR}/../man/man1
+BALANCEEXE=$(BALANCE)
 
 # uncomment for Solaris:
 # LIBRARIES=-lsocket -lnsl
@@ -17,16 +15,16 @@ MANDIR=${BINDIR}/../man/man1
 
 # uncomment for Cygwin:
 # LIBRARIES=-L/usr/local/lib -lcygipc
-# BALANCE=balance.exe
+# BALANCEEXE=$(BALANCE).exe
 # ROOT=Administrators
 
 CC=gcc
-RELEASE=3.54
+RELEASE=1.0.0
 
-all: balance 
+all: $(BALANCEEXE)
 
-balance: balance.o butils.o
-	$(CC) $(CFLAGS) -I. -o balance balance.o butils.o $(LIBRARIES)
+$(BALANCEEXE): balance.o butils.o
+	$(CC) $(CFLAGS) -I. -o $(BALANCEEXE) balance.o butils.o $(LIBRARIES)
 
 balance.o: balance.c balance.h
 	$(CC) $(CFLAGS) -I. -c balance.c
@@ -34,40 +32,39 @@ balance.o: balance.c balance.h
 butils.o: butils.c balance.h
 	$(CC) $(CFLAGS) -I. -c butils.c
 
-balance.pdf: balance.ps
-	ps2pdf balance.ps balance.pdf	
-		
-balance.ps: balance.1
-	troff -Tpost -man balance.1 | /usr/lib/lp/postscript/dpost > balance.ps
-	# groff -f H -man balance.1 > balance.ps
+$(BALANCE).pdf: $(BALANCE).ps
+	ps2pdf $(BALANCE).ps $(BALANCE).pdf
 
-ci:		
-	ci -l *.c *.h Makefile balance.1 README balance.spec 
+$(BALANCE).ps: $(BALANCE).1
+	troff -Tpost -man $(BALANCE).1 | /usr/lib/lp/postscript/dpost > $(BALANCE).ps
+	# groff -f H -man $(BALANCE).1 > $(BALANCE).ps
 
 clean:
-	rm -f $(BALANCE) *.o balance.ps balance.pdf
+	rm -f $(BALANCE) *.o $(BALANCE).ps $(BALANCE).pdf
 
 install:
-	$(INSTALL) -o $(ROOT) -g $(ROOT) -m 755  $(BALANCE) \
-		$(DESTDIR)$(BINDIR)/$(BALANCE) 
-	$(INSTALL) -o $(ROOT) -g $(ROOT) -m 755  balance.1 \
-		$(DESTDIR)$(MANDIR) 
-	mkdir -p $(DESTDIR)/var/run/balance
-	chmod 1777 $(DESTDIR)/var/run/balance
+	mkdir -p $(DESTDIR)$(BINDIR)
+	$(INSTALL) -o $(ROOT) -g $(ROOT) -m 755  $(BALANCEEXE) \
+		$(DESTDIR)$(BINDIR)/$(BALANCEEXE)
+	mkdir -p $(DESTDIR)$(MANDIR)
+	$(INSTALL) -o $(ROOT) -g $(ROOT) -m 755  $(BALANCE).1 \
+		$(DESTDIR)$(MANDIR)
+	mkdir -p $(DESTDIR)/var/run/$(BALANCE)
+	chmod 1777 $(DESTDIR)/var/run/$(BALANCE)
 
-release: balance.pdf
-	rm -rf ./releases/balance-$(RELEASE)
-	mkdir ./releases/balance-$(RELEASE)
-	cp balance.1 balance.pdf balance.c balance.h butils.c COPYING Makefile README ./releases/balance-$(RELEASE)
-	cp balance.spec ./releases/balance-$(RELEASE)/balance.spec
-	cd releases; tar -cvf balance-$(RELEASE).tar ./balance-$(RELEASE)
-	cd releases; gzip balance-$(RELEASE).tar
+release: $(BALANCE).pdf
+	rm -rf ./releases/$(BALANCE)-$(RELEASE)
+	mkdir ./releases/$(BALANCE)-$(RELEASE)
+	cp $(BALANCE).1 $(BALANCE).pdf balance.c balance.h butils.c COPYING Makefile README ./releases/$(BALANCE)-$(RELEASE)
+	cp $(BALANCE).spec ./releases/$(BALANCE)-$(RELEASE)/$(BALANCE).spec
+	cd releases; tar -cvf $(BALANCE)-$(RELEASE).tar ./$(BALANCE)-$(RELEASE)
+	cd releases; gzip $(BALANCE)-$(RELEASE).tar
 
-rpm:	ever	
-	cp releases/balance-$(RELEASE).tar.gz /usr/src/redhat/SOURCES/
-	rpmbuild -ba balance.spec
-	cp /usr/src/redhat/SRPMS/balance-$(RELEASE)-1.src.rpm ./releases
-	cp /usr/src/redhat/RPMS/i386/balance-$(RELEASE)-1.i386.rpm ./releases
+rpm: ever
+	cp releases/$(BALANCE)-$(RELEASE).tar.gz /usr/src/redhat/SOURCES/
+	rpmbuild -ba $(BALANCE).spec
+	cp /usr/src/redhat/SRPMS/$(BALANCE)-$(RELEASE)-1.src.rpm ./releases
+	cp /usr/src/redhat/RPMS/i386/$(BALANCE)-$(RELEASE)-1.i386.rpm ./releases
 
 ever:
 

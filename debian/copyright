@@ -1,0 +1,20 @@
+This package was debianized by Rafael Gonzalez <rafael.gonzalez@fluidsignal.com> on
+Mon, 11 Jun 2007 16:37:43 -0500.
+
+It was downloaded from http://www.inlab.de/balance-3.35.tar.gz
+
+Upstream Author: Thomas Obermair, Inlab Software GmbH (obermair@acm.org)
+
+Copyright: Copyright (c) 2000-2006,2007 by Thomas Obermair (obermair@acm.org) and Inlab Software GmbH (http://www.inlab.de), Gruenwald, Germany.  All rights
+       reserved.
+
+License:
+
+The GNU General Public License version 2 applies to the upstream
+sources.  On Debian systems, the complete text of the GNU General
+Public License version 2 can be found in the
+/usr/share/common-licenses/GPL-2 file.
+
+
+The Debian packaging is (C) 2007, Rafael Gonzalez <rafael.gonzalez@fluidsignal.com> and
+is licensed under the GPL, see `/usr/share/common-licenses/GPL'.

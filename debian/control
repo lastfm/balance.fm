@@ -1,0 +1,12 @@
+Source: balance.fm
+Section: admin
+Priority: optional
+Maintainer: Marcus Holland-Moritz <marcus@last.fm>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.9.1
+
+Package: balance.fm
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Load balancing solution and generic tcp proxy
+ balance.fm is Last.fm's fork of the balance software load balancer.
