@@ -106,13 +106,12 @@
  *
  */
 
-#include <balance.h>
+#include "balance.h"
 
-const char *balance_rcsid = "$Id: balance.c,v 3.54 2010/12/03 12:47:10 t Exp $";
-static char *revision = "$Revision: 3.54 $";
-
-static int release;
-static int subrelease;
+// TODO: those need to be set automatically from the debian/changelog
+static int release = 1;
+static int subrelease = 0;
+static int patchlevel = 0;
 
 static char rendezvousfile[FILENAMELEN];
 static int rendezvousfd;
@@ -152,7 +151,7 @@ static void log_msg(int priority, const char *fmt, ...)
   if (no_std_handles) {
     vsyslog(priority, fmt, ap);
   } else {
-    fprintf(stderr, "balance: ");
+    fprintf(stderr, "balance.fm: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     fflush(stderr);
@@ -166,7 +165,7 @@ static void log_perror(int priority, const char *str)
   if (no_std_handles) {
     syslog(priority, "%s: %s", str, err);
   } else {
-    fprintf(stderr, "balance: %s: %s\n", str, err);
+    fprintf(stderr, "balance.fm: %s: %s\n", str, err);
     fflush(stderr);
   }
 }
@@ -857,7 +856,7 @@ void *stream(int arg, int groupindex, int index, char *client_address,
       if(autodisable) {
         if(chn_status(common, groupindex, index) != 0) {
           log_msg(LOG_NOTICE, "connection failed group %d channel %d", groupindex, index);
-          log_msg(LOG_NOTICE, "%s:%d needs to be enabled manually using balance -i after the problem is solved", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
+          log_msg(LOG_NOTICE, "%s:%d needs to be enabled manually using balance.fm -i after the problem is solved", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
           chn_status(common, groupindex, index) = 0;
         }
       }
@@ -982,54 +981,29 @@ void *stream(int arg, int groupindex, int index, char *client_address,
 }
 
 static
-void initialize_release_variables(void)
-{
-  char *version;
-  char *revision_copy;
-  char *token;
-
-  if ((revision_copy = (char *) malloc(strlen(revision) + 1)) == NULL) {
-    fprintf(stderr, "malloc problem in initialize_release_variables()\n");
-  } else {
-    strcpy(revision_copy, revision);
-    token = strtok(revision_copy, " ");
-    token = strtok(NULL, " ");
-    version = token != NULL ? token : "0.0";
-    release = atoi(version);
-    if (strlen(version) >= 3) {
-      subrelease = atoi(version + 2);
-    } else {
-      subrelease = 0;
-    }
-    free(revision_copy);
-  }
-}
-
-static
 void usage(void)
 {
-  fprintf(stderr," _           _\n");
-  fprintf(stderr,"| |__   __ _| | __ _ _ __   ___ ___\n");
-  fprintf(stderr,"| '_ \\ / _` | |/ _` | '_ \\ / __/ _ \\\n");
-  fprintf(stderr,"| |_) | (_| | | (_| | | | | (_|  __/\n");
-  fprintf(stderr,"|_.__/ \\__,_|_|\\__,_|_| |_|\\___\\___|\n");
+  fprintf(stderr," _           _                         __\n");
+  fprintf(stderr,"| |__   __ _| | __ _ _ __   ___ ___   / _|_ __ ___\n");
+  fprintf(stderr,"| '_ \\ / _` | |/ _` | '_ \\ / __/ _ \\ | |_| '_ ` _ \\\n");
+  fprintf(stderr,"| |_) | (_| | | (_| | | | | (_|  __/_|  _| | | | | |\n");
+  fprintf(stderr,"|_.__/ \\__,_|_|\\__,_|_| |_|\\___\\___(_)_| |_| |_| |_|\n");
 
-
-  fprintf(stderr, "  this is balance %d.%d\n", release, subrelease);
+  fprintf(stderr, "  this is balance.fm %d.%d.%d\n", release, subrelease, patchlevel);
   fprintf(stderr, "  Copyright (c) 2000-2009,2010\n");
   fprintf(stderr, "  by Inlab Software GmbH, Gruenwald, Germany.\n");
   fprintf(stderr, "  All rights reserved.\n");
   fprintf(stderr, "\n");
 
   fprintf(stderr, "usage:\n");
-  fprintf(stderr, "  balance [-b addr] [-B addr] [-t sec] [-T sec]");
+  fprintf(stderr, "  balance.fm [-b addr] [-B addr] [-t sec] [-T sec]");
 #if BALANCE_CAN_KEEPALIVE
   fprintf(stderr,                                                " [-k t,i,p] [-K t,i,p]");
 #endif
   fprintf(stderr,                                                                      " [-adfpHM] \\\n");
   fprintf(stderr, "          port [h1[:p1[:maxc1]] [!%%] [ ... hN[:pN[:maxcN]]]]\n");
-  fprintf(stderr, "  balance [-b addr] -i [-d] port\n");
-  fprintf(stderr, "  balance [-b addr] -c cmd  [-d] port\n");
+  fprintf(stderr, "  balance.fm [-b addr] -i [-d] port\n");
+  fprintf(stderr, "  balance.fm [-b addr] -c cmd  [-d] port\n");
   fprintf(stderr, "\n");
   fprintf(stderr, "  -a        enable channel autodisable option\n");
   fprintf(stderr, "  -b host   bind to specific address on listen\n");
@@ -1052,10 +1026,10 @@ void usage(void)
 
   fprintf(stderr, "\n");
   fprintf(stderr, "examples:\n");
-  fprintf(stderr, "  balance smtp mailhost1:smtp mailhost2:25 mailhost3\n");
-  fprintf(stderr, "  balance -i smtp\n");
-  fprintf(stderr, "  balance -b 2001:DB8::1 80 10.1.1.1 10.1.1.2\n");
-  fprintf(stderr, "  balance -b 2001:DB8::1 80\n");
+  fprintf(stderr, "  balance.fm smtp mailhost1:smtp mailhost2:25 mailhost3\n");
+  fprintf(stderr, "  balance.fm -i smtp\n");
+  fprintf(stderr, "  balance.fm -b 2001:DB8::1 80 10.1.1.1 10.1.1.2\n");
+  fprintf(stderr, "  balance.fm -b 2001:DB8::1 80\n");
   fprintf(stderr, "\n");
 
   exit(EX_USAGE);
@@ -1238,7 +1212,7 @@ int shell(char *argument)
   for (;;) {
 
     if (argument == NULL) {
-      printf("balance[%d] ", currentgroup);
+      printf("balance.fm[%d] ", currentgroup);
       if (fgets(line, MAXINPUTLINE, stdin) == NULL) {
         printf("\n");
         exit(EX_OK);
@@ -1534,7 +1508,7 @@ int shell(char *argument)
         b_unlock();
 
       } else if (mycmp(command, "version")) {
-        printf("  This is balance %d.%d\n", release, subrelease);
+        printf("  This is balance.fm %d.%d\n", release, subrelease);
         printf("  MAXGROUPS=%d\n", MAXGROUPS);
         printf("  MAXCHANNELS=%d\n", MAXCHANNELS);
       } else if (mycmp(command, "hash")) {
@@ -1579,7 +1553,6 @@ int main(int argc, char *argv[])
 #endif
 
   connect_timeout = DEFAULTTIMEOUT;
-  initialize_release_variables();
 
   while ((c = getopt(argc, argv, "c:b:B:t:T:k:K:adfpiHM6")) != EOF) {
     switch (c) {
