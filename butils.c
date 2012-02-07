@@ -33,7 +33,7 @@ ssize_t writen(int fd, unsigned char *ptr, size_t nbytes)
   while (nleft > 0) {
     nwritten = write(fd, ptr, nleft);
     if (nwritten <= 0) {
-      return (nwritten);	/* error */
+      return (nwritten);        /* error */
     }
     nleft -= nwritten;
     ptr += nwritten;
@@ -41,4 +41,3 @@ ssize_t writen(int fd, unsigned char *ptr, size_t nbytes)
 
   return (nbytes - nleft);
 }
-

@@ -23,14 +23,14 @@
  *  3.50
  *    new option -6 forces IPv6 bind (hints.ai_family = AF_INET6)
  *  3.49
- *    ftok() patch applied (thanks to Vladan Djeric)  
+ *    ftok() patch applied (thanks to Vladan Djeric)
  *  3.48
- *    Problems with setting IPV6_V6ONLY socket option are now handled 
- *    more nicely with a syslog warning message 
+ *    Problems with setting IPV6_V6ONLY socket option are now handled
+ *    more nicely with a syslog warning message
  *  3.42
  *    Balance compiles now on systems where IPV6_V6ONLY is undefined
  *  3.35
- *    bugfix in autodisable code (thanks to Michael Durket) 
+ *    bugfix in autodisable code (thanks to Michael Durket)
  *  3.34
  *    syslog logging added (finally)
  *    -a autodisable option added (thanks to Mitsuru IWASAKI)
@@ -40,7 +40,7 @@
  *  3.32
  *    /var/run/balance may already exist (thanks to Thomas Steudten)
  *  3.31
- *    TCP_NODELAY properly switched on (thanks to Kurt J. Lidl). 
+ *    TCP_NODELAY properly switched on (thanks to Kurt J. Lidl).
  *  3.30
  *    Code cleanups and fixes (thanks to Kurt J. Lidl)
  *  3.28
@@ -55,12 +55,12 @@
  *  3.22
  *    writelock and channelcount patch from Stoyan Genov
  *    balance exit codes fix from Chris Wilson
- *    /var/run/balance is tried to be autocreated (if not there) 
+ *    /var/run/balance is tried to be autocreated (if not there)
  *    close of 0,1,2 on background operation
  *  3.19
  *    -h changed to -H
  *  3.17
- *    -h option added 
+ *    -h option added
  *    thanks to Werner Maier
  *  3.16
  *    fixed missing save_tmout initialization
@@ -70,7 +70,7 @@
  *  3.14
  *    -Wall cleanup
  *  3.12
- *    alarm(0) added, thanks to Jon Christensen 
+ *    alarm(0) added, thanks to Jon Christensen
  *  3.11
  *    Bugfix
  *  3.10
@@ -116,7 +116,7 @@ static int subrelease;
 
 static char rendezvousfile[FILENAMELEN];
 static int rendezvousfd;
-#ifndef	NO_MMAP
+#ifndef NO_MMAP
 static int shmfilefd;
 #endif
 
@@ -271,7 +271,7 @@ int a_readlock(off_t start, off_t len) {
 repeat:
   if ((rc = fcntl(rendezvousfd, F_SETLKW, &fdata)) < 0) {
     if (errno == EINTR) {
-      goto repeat;		// 8-)
+      goto repeat;              // 8-)
     } else {
       log_perror(LOG_ERR, "readlock");
       exit(EX_OSERR);
@@ -286,7 +286,7 @@ void b_readlock(void) {
 
 void c_readlock(int group, int channel) {
   a_readlock(((char *) &(grp_channel(common, group, channel))) -
-	     (char *) common, sizeof(CHANNEL));
+             (char *) common, sizeof(CHANNEL));
 }
 
 int a_writelock(off_t start, off_t len) {
@@ -301,7 +301,7 @@ int a_writelock(off_t start, off_t len) {
 repeat:
   if ((rc = fcntl(rendezvousfd, F_SETLKW, &fdata)) < 0) {
     if (errno == EINTR) {
-      goto repeat;		// 8-)
+      goto repeat;              // 8-)
     } else {
       log_perror(LOG_ERR, "a_writelock");
       exit(EX_OSERR);
@@ -317,7 +317,7 @@ void b_writelock(void) {
 void c_writelock(int group, int channel)
 {
   a_writelock(((char *) &(grp_channel(common, group, channel))) -
-	      (char *) common, sizeof(CHANNEL));
+              (char *) common, sizeof(CHANNEL));
 }
 
 int a_unlock(off_t start, off_t len)
@@ -333,7 +333,7 @@ int a_unlock(off_t start, off_t len)
 repeat:
   if ((rc = fcntl(rendezvousfd, F_SETLK, &fdata)) < 0) {
     if (errno == EINTR) {
-      goto repeat;		// 8-)
+      goto repeat;              // 8-)
     } else {
       log_perror(LOG_ERR, "a_unlock");
       exit(EX_OSERR);
@@ -350,7 +350,7 @@ void b_unlock(void)
 void c_unlock(int group, int channel)
 {
   a_unlock(((char *) &(grp_channel(common, group, channel))) -
-	   (char *) common, sizeof(CHANNEL));
+           (char *) common, sizeof(CHANNEL));
 }
 
 void *shm_malloc(char *file, int size)
@@ -360,7 +360,7 @@ void *shm_malloc(char *file, int size)
   int shmid;
 
   if(shmmapfile){
-#ifndef	NO_MMAP
+#ifndef NO_MMAP
     char shmfile[FILENAMELEN];
 
     strcpy(shmfile, file);
@@ -398,7 +398,7 @@ void *shm_malloc(char *file, int size)
        only the lower 12 bits of the inode number in the 'key'.
        See: http://bugs.opensolaris.org/bugdatabase/view_bug.do?bug_id=4265917
     */
-    
+
     FILE *rendezvousfp = NULL;
     struct timeval ct;
     long int seed;
@@ -411,10 +411,10 @@ void *shm_malloc(char *file, int size)
 
     if ((fscanf(rendezvousfp, "0x%x\n", &key)) <= 0) {
       gettimeofday(&ct, NULL);
-      seed = ct.tv_usec * getpid(); 
+      seed = ct.tv_usec * getpid();
       srand(seed);
 
-      /* Solaris rand() returns values between 0 and 0x7fff, 
+      /* Solaris rand() returns values between 0 and 0x7fff,
          so generate key byte by byte */
       key = 0;
       for (i = 0; i < sizeof(key); i++) {
@@ -462,18 +462,18 @@ void print_packet(unsigned char *s, int l)
   for (i = 0; i < l; i++) {
     if (isprint(s[i]) && isascii(s[i])) {
       if (s[i] == '\\') {
-	printf("\\\\");
-	cc += 2;
+        printf("\\\\");
+        cc += 2;
       } else {
-	printf("%c", s[i]);
-	cc++;
+        printf("%c", s[i]);
+        cc++;
       }
     } else {
       printf("\\%02X", s[i]);
       cc += 3;
       if (s[i] == '\n') {
-	printf("\n");
-	cc = 0;
+        printf("\n");
+        cc = 0;
       }
     }
     if (cc > 80) {
@@ -510,7 +510,7 @@ void setipaddress(struct in_addr *ipaddr, char *string)
 }
 
 void setaddress(struct in_addr *ipaddr, int *port, char *string,
-		int default_port, int *maxc)
+                int default_port, int *maxc)
 {
   char *host_string = NULL;
   char *port_string = NULL;
@@ -573,7 +573,7 @@ void setaddress(struct in_addr *ipaddr, int *port, char *string,
 }
 
 int setaddress_noexitonerror(struct in_addr *ipaddr, int *port,
-			     char *string, int default_port)
+                             char *string, int default_port)
 {
   char *host_string;
   char *port_string;
@@ -606,16 +606,16 @@ int readline(int fd, char *ptr, int maxlen)
     if ((rc = read(fd, &c, 1)) == 1) {
       *ptr++ = c;
       if (c == '\n') {
-	break;
+        break;
       }
     } else if (rc == 0) {
       if (n == 1) {
-	return (0);		// EOF, no data read 
+        return (0);             // EOF, no data read
       } else {
-	break;			// EOF, some data was read 
+        break;                  // EOF, some data was read
       }
     } else {
-      return (-1);		// error 
+      return (-1);              // error
     }
   }
   *ptr = 0;
@@ -706,7 +706,7 @@ static void set_socket_options(int s, const KEEPALIVE *ka)
 
 /*
  * the connection is really established, let's transfer the data
- *  as efficient as possible :-) 
+ *  as efficient as possible :-)
  */
 
 void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
@@ -733,35 +733,35 @@ void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
 
     for (;;) {
       if (sel_tmout.tv_sec || sel_tmout.tv_usec) {
-	sr = select(fdset_width, &readfds, NULL, NULL, &sel_tmout);
+        sr = select(fdset_width, &readfds, NULL, NULL, &sel_tmout);
       } else {
-	sr = select(fdset_width, &readfds, NULL, NULL, NULL);
+        sr = select(fdset_width, &readfds, NULL, NULL, NULL);
       }
       if ((save_tmout.tv_sec || save_tmout.tv_usec) && !sr) {
-	c_writelock(groupindex, channelindex);
-	chn_c(common, groupindex, channelindex) -= 1;
-	c_unlock(groupindex, channelindex);
-	log_msg(LOG_ERR, "timed out after %d seconds", (int) save_tmout.tv_sec);
-	exit(EX_UNAVAILABLE);
+        c_writelock(groupindex, channelindex);
+        chn_c(common, groupindex, channelindex) -= 1;
+        c_unlock(groupindex, channelindex);
+        log_msg(LOG_ERR, "timed out after %d seconds", (int) save_tmout.tv_sec);
+        exit(EX_UNAVAILABLE);
       }
       if (sr < 0 && errno != EINTR) {
         log_perror(LOG_ERR, "select");
-	c_writelock(groupindex, channelindex);
-	chn_c(common, groupindex, channelindex) -= 1;
-	c_unlock(groupindex, channelindex);
-	exit(EX_UNAVAILABLE);
+        c_writelock(groupindex, channelindex);
+        chn_c(common, groupindex, channelindex) -= 1;
+        c_unlock(groupindex, channelindex);
+        exit(EX_UNAVAILABLE);
       }
       if (sr > 0)
-	break;
+        break;
     }
 
     if (FD_ISSET(clientfd, &readfds)) {
       if (forward(clientfd, serverfd, groupindex, channelindex) < 0) {
-	break;
+        break;
       }
     } else {
       if (backward(serverfd, clientfd, groupindex, channelindex) < 0) {
-	break;
+        break;
       }
     }
   }
@@ -783,18 +783,18 @@ void chld_handler(int signo) {
 }
 
 /*
- * a channel in a group is selected and we try to establish a connection 
+ * a channel in a group is selected and we try to establish a connection
  */
 
 void *stream(int arg, int groupindex, int index, char *client_address,
-	     int client_address_size) {
+             int client_address_size) {
   int startindex;
   int sockfd;
   int clientfd;
   struct sigaction alrm_action;
   struct sockaddr_in serv_addr;
 
-  startindex = index;		// lets keep where we start...
+  startindex = index;           // lets keep where we start...
   clientfd = arg;
 
   for (;;) {
@@ -813,7 +813,7 @@ void *stream(int arg, int groupindex, int index, char *client_address,
 
     /*
      *  if -B is specified, balance tries to bind to it even on
-     *  outgoing connections 
+     *  outgoing connections
      */
 
     if (outbindhost != NULL) {
@@ -822,8 +822,8 @@ void *stream(int arg, int groupindex, int index, char *client_address,
       outbind_addr.sin_family = AF_INET;
       setipaddress(&outbind_addr.sin_addr, outbindhost);
       if (bind
-	  (sockfd, (struct sockaddr *) &outbind_addr,
-	   sizeof(outbind_addr)) < 0) {
+          (sockfd, (struct sockaddr *) &outbind_addr,
+           sizeof(outbind_addr)) < 0) {
       }
     }
 
@@ -831,12 +831,12 @@ void *stream(int arg, int groupindex, int index, char *client_address,
     bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr =
-	chn_ipaddr(common, groupindex, index).s_addr;
+        chn_ipaddr(common, groupindex, index).s_addr;
     serv_addr.sin_port = htons(chn_port(common, groupindex, index));
     b_unlock();
 
     alrm_action.sa_handler = alrm_handler;
-    alrm_action.sa_flags = 0;	// don't restart !
+    alrm_action.sa_flags = 0;   // don't restart !
     sigemptyset(&alrm_action.sa_mask);
     sigaction(SIGALRM, &alrm_action, NULL);
     alarm(connect_timeout);
@@ -849,113 +849,113 @@ void *stream(int arg, int groupindex, int index, char *client_address,
       }
 
       /* here we've received an error (either 'timeout' or 'connection refused')
-       * let's start some magical failover mechanisms 
+       * let's start some magical failover mechanisms
        */
 
       c_writelock(groupindex, index);
       chn_c(common, groupindex, index)--;
       if(autodisable) {
-	if(chn_status(common, groupindex, index) != 0) {
-	  log_msg(LOG_NOTICE, "connection failed group %d channel %d", groupindex, index);
-	  log_msg(LOG_NOTICE, "%s:%d needs to be enabled manually using balance -i after the problem is solved", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
-	  chn_status(common, groupindex, index) = 0;
-	}
+        if(chn_status(common, groupindex, index) != 0) {
+          log_msg(LOG_NOTICE, "connection failed group %d channel %d", groupindex, index);
+          log_msg(LOG_NOTICE, "%s:%d needs to be enabled manually using balance -i after the problem is solved", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
+          chn_status(common, groupindex, index) = 0;
+        }
       }
       c_unlock(groupindex, index);
 
       b_readlock();
       for (;;) {
-	for (;;) {
-	  if (grp_type(common, groupindex) == GROUP_RR || hashfailover == 1) {
-	    index++;
-	    if (index >= grp_nchannels(common, groupindex)) {
-	      index = 0;
-	    }
-	    if (index == startindex) {
-	      index = -1;	// Giveup 
-	      break;
-	    }
-	    if (chn_status(common, groupindex, index) == 1 &&
-		(chn_maxc(common, groupindex, index) == 0 ||
-		 (chn_c(common, groupindex, index) <
-		  chn_maxc(common, groupindex, index)))) {
-	      break;		// new index found 
-	    } else {
-	      continue;
-	    }
-	  } else if (grp_type(common, groupindex) == GROUP_HASH) {
+        for (;;) {
+          if (grp_type(common, groupindex) == GROUP_RR || hashfailover == 1) {
+            index++;
+            if (index >= grp_nchannels(common, groupindex)) {
+              index = 0;
+            }
+            if (index == startindex) {
+              index = -1;       // Giveup
+              break;
+            }
+            if (chn_status(common, groupindex, index) == 1 &&
+                (chn_maxc(common, groupindex, index) == 0 ||
+                 (chn_c(common, groupindex, index) <
+                  chn_maxc(common, groupindex, index)))) {
+              break;            // new index found
+            } else {
+              continue;
+            }
+          } else if (grp_type(common, groupindex) == GROUP_HASH) {
 
-	    // If the current group is type hash, we giveup immediately 
-	    index = -1;
-	    break;
-	  } else {
-	    err_dump("PANIC: invalid group in stream()");
-	  }
-	}
+            // If the current group is type hash, we giveup immediately
+            index = -1;
+            break;
+          } else {
+            err_dump("PANIC: invalid group in stream()");
+          }
+        }
 
-	if (index >= 0) {
-	  // neuer index in groupindex-group found...
-	  break;
-	} else {
-	again:
-	  groupindex++;
-	  if (groupindex >= MAXGROUPS) {
-	    // giveup, index=-1.
-	    break;
-	  } else {
-	    if (grp_type(common, groupindex) == GROUP_RR) {
+        if (index >= 0) {
+          // neuer index in groupindex-group found...
+          break;
+        } else {
+        again:
+          groupindex++;
+          if (groupindex >= MAXGROUPS) {
+            // giveup, index=-1.
+            break;
+          } else {
+            if (grp_type(common, groupindex) == GROUP_RR) {
 
-	      if (grp_nchannels(common, groupindex) > 0) {
-		index = grp_current(common, groupindex);
-		startindex = index;	// This fixes the "endless loop error"
-					// with all hosts being down and one
-					// in the last group... (from Anthony Baxter) 
-	      } else {
-		goto again;
-	      }
-	      break;
-	    } else if (grp_type(common, groupindex) == GROUP_HASH) {
-	      unsigned int uindex;
-	      uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &client_address)->sin6_addr), client_address_size);
+              if (grp_nchannels(common, groupindex) > 0) {
+                index = grp_current(common, groupindex);
+                startindex = index;     // This fixes the "endless loop error"
+                                        // with all hosts being down and one
+                                        // in the last group... (from Anthony Baxter)
+              } else {
+                goto again;
+              }
+              break;
+            } else if (grp_type(common, groupindex) == GROUP_HASH) {
+              unsigned int uindex;
+              uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &client_address)->sin6_addr), client_address_size);
 
-	      debug("HASH-method: fold returns %u\n", uindex);
+              debug("HASH-method: fold returns %u\n", uindex);
 
-	      index = uindex % grp_nchannels(common, groupindex);
+              index = uindex % grp_nchannels(common, groupindex);
               debug("modulo %d gives %d\n", grp_nchannels(common, groupindex), index);
 
-	      if (chn_status(common, groupindex, index) == 1 &&
-		  (chn_maxc(common, groupindex, index) == 0 ||
-		   (chn_c(common, groupindex, index) <
-		    chn_maxc(common, groupindex, index)))
-		  ) {
-		break;
-	      } else {
-		goto again;	// next group !
-	      }
-	    } else {
-	      err_dump("PANIC: invalid group in stream()");
-	    }
-	  }
-	}
+              if (chn_status(common, groupindex, index) == 1 &&
+                  (chn_maxc(common, groupindex, index) == 0 ||
+                   (chn_c(common, groupindex, index) <
+                    chn_maxc(common, groupindex, index)))
+                  ) {
+                break;
+              } else {
+                goto again;     // next group !
+              }
+            } else {
+              err_dump("PANIC: invalid group in stream()");
+            }
+          }
+        }
       }
       // we drop out here with a new index
 
       b_unlock();
 
       if (index >= 0) {
-	// lets try it again 
-	close(sockfd);
-	c_writelock(groupindex, index);
-	chn_c(common, groupindex, index) += 1;
-	chn_tc(common, groupindex, index) += 1;
-	c_unlock(groupindex, index);
-	continue;
+        // lets try it again
+        close(sockfd);
+        c_writelock(groupindex, index);
+        chn_c(common, groupindex, index) += 1;
+        chn_tc(common, groupindex, index) += 1;
+        c_unlock(groupindex, index);
+        continue;
       } else {
-	break;
+        break;
       }
 
     } else {
-      alarm(0);			// Cancel the alarm since we successfully connected
+      alarm(0);                 // Cancel the alarm since we successfully connected
       debug("connect to channel %d successful\n", index);
       // this prevents the 'channel 2 overload problem'
 
@@ -963,12 +963,12 @@ void *stream(int arg, int groupindex, int index, char *client_address,
       grp_current(common, groupindex) = index;
       grp_current(common, groupindex)++;
       if (grp_current(common, groupindex) >=
-	  grp_nchannels(common, groupindex)) {
-	grp_current(common, groupindex) = 0;
+          grp_nchannels(common, groupindex)) {
+        grp_current(common, groupindex) = 0;
       }
       b_unlock();
 
-      // everything's fine ... 
+      // everything's fine ...
 
       stream2(clientfd, sockfd, groupindex, index);
       // stream2 bekommt den Channel-Index mit
@@ -1061,7 +1061,7 @@ void usage(void)
   exit(EX_USAGE);
 }
 
-// goto background: 
+// goto background:
 
 void background(void) {
   int childpid;
@@ -1070,7 +1070,7 @@ void background(void) {
     exit(EX_OSERR);
   } else {
     if (childpid > 0) {
-      exit(EX_OK);		/* parent */
+      exit(EX_OK);              /* parent */
     }
   }
 #ifdef BalanceBSD
@@ -1078,7 +1078,7 @@ void background(void) {
 #else
   setpgrp();
 #endif
-  if(chdir("/") <0) 
+  if(chdir("/") <0)
     perror("chdir");
   /* no more writing to stdout/stderr after this point, please */
   no_std_handles = 1;
@@ -1094,7 +1094,7 @@ COMMON *makecommon(int argc, char **argv, int source_port)
   int group;
   int channel;
   COMMON *mycommon;
-  int numchannels = argc - 1;	// port number is first argument
+  int numchannels = argc - 1;   // port number is first argument
 
   if (numchannels >= MAXCHANNELS) {
     log_msg(LOG_ERR, "MAXCHANNELS exceeded");
@@ -1122,7 +1122,7 @@ COMMON *makecommon(int argc, char **argv, int source_port)
   for (group = 0; group < MAXGROUPS; group++) {
     grp_nchannels(mycommon, group) = 0;
     grp_current(mycommon, group) = 0;
-    grp_type(mycommon, group) = GROUP_RR;	// Default: RR
+    grp_type(mycommon, group) = GROUP_RR;       // Default: RR
   }
 
   group = 0;
@@ -1132,41 +1132,41 @@ COMMON *makecommon(int argc, char **argv, int source_port)
     if (!strcmp(argv[i], "!")) {
       // This is a normal "GROUP_RR"-Type of Group
       if(channel <= 0) {
-	err_dump("no channels in group");
+        err_dump("no channels in group");
       }
       grp_type(mycommon, group) = GROUP_RR;
       group++;
       channel = 0;
       if (group >= MAXGROUPS) {
-	err_dump("too many groups");
+        err_dump("too many groups");
       }
     } else if (!strcmp(argv[i], "%")) {
       // This is a "GROUP_HASH"
       if(channel <= 0) {
-	err_dump("no channels in group");
+        err_dump("no channels in group");
       }
       grp_type(mycommon, group) = GROUP_HASH;
       group++;
       channel = 0;
       if (group >= MAXGROUPS) {
-	err_dump("too many groups");
+        err_dump("too many groups");
       }
     } else {
       chn_status(mycommon, group, channel) = 1;
-      chn_c(mycommon, group, channel) = 0;	// connections...
-      chn_tc(mycommon, group, channel) = 0;	// total connections...
-      chn_maxc(mycommon, group, channel) = 0;	// maxconnections...
+      chn_c(mycommon, group, channel) = 0;      // connections...
+      chn_tc(mycommon, group, channel) = 0;     // total connections...
+      chn_maxc(mycommon, group, channel) = 0;   // maxconnections...
       setaddress(&chn_ipaddr(mycommon, group, channel),
-		 &chn_port(mycommon, group, channel),
-		 argv[i],
-		 source_port, &chn_maxc(mycommon, group, channel));
+                 &chn_port(mycommon, group, channel),
+                 argv[i],
+                 source_port, &chn_maxc(mycommon, group, channel));
       chn_bsent(mycommon, group, channel) = 0;
       chn_breceived(mycommon, group, channel) = 0;
 
       grp_nchannels(mycommon, group) += 1;
       channel++;
       if (channel >= MAXCHANNELS) {
-	err_dump("too many channels in one group");
+        err_dump("too many channels in one group");
       }
     }
   }
@@ -1175,12 +1175,12 @@ COMMON *makecommon(int argc, char **argv, int source_port)
     fprintf(stderr, "the following channels are active:\n");
     for (group = 0; group <= MAXGROUPS; group++) {
       for (i = 0; i < grp_nchannels(mycommon, group); i++) {
-	fprintf(stderr, "%3d %2d %s:%d:%d\n",
-		group,
-		i,
-		inet_ntoa(chn_ipaddr(mycommon, group, i)),
-		chn_port(mycommon, group, i),
-		chn_maxc(mycommon, group, i));
+        fprintf(stderr, "%3d %2d %s:%d:%d\n",
+                group,
+                i,
+                inet_ntoa(chn_ipaddr(mycommon, group, i)),
+                chn_port(mycommon, group, i),
+                chn_maxc(mycommon, group, i));
       }
     }
   }
@@ -1220,7 +1220,7 @@ int shell(char *argument)
 
   if (common->release != release || common->subrelease != subrelease) {
     printf("release mismatch, expecting %d.%d, got %d.%d, exiting.\n",
-	   release, subrelease, common->release, common->subrelease);
+           release, subrelease, common->release, common->subrelease);
     exit(EX_DATAERR);
   }
 
@@ -1231,7 +1231,7 @@ int shell(char *argument)
 
   if (argument == NULL) {
     printf("\nbalance %d.%d interactive command shell\n", release,
-	   subrelease);
+           subrelease);
     printf("PID of master process is %d\n\n", common->pid);
   }
 
@@ -1240,8 +1240,8 @@ int shell(char *argument)
     if (argument == NULL) {
       printf("balance[%d] ", currentgroup);
       if (fgets(line, MAXINPUTLINE, stdin) == NULL) {
-	printf("\n");
-	exit(EX_OK);
+        printf("\n");
+        exit(EX_OK);
       }
     } else {
       strncpy(line, argument, MAXINPUTLINE);
@@ -1249,176 +1249,176 @@ int shell(char *argument)
 
     if ((command = strtok(line, " \t\n")) != NULL) {
       if (mycmp(command, "quit")) {
-	exit(EX_OK);
+        exit(EX_OK);
       } else if (mycmp(command, "show")) {
-	b_readlock();
-	{
-	  int group;
+        b_readlock();
+        {
+          int group;
 
-	  printf("%3s %4s %2s %3s %16s %5s %4s %11s %4s %11s %11s\n",
-		 "GRP", "Type", "#", "S", "ip-address", "port", "c", "totalc",
-		 "maxc", "sent", "rcvd");
-	  for (group = 0; group <= MAXGROUPS; group++) {
-	    for (i = 0; i < grp_nchannels(common, group); i++) {
-	      printf("%3d %4s %2d %3s %16s %5d %4d %11u %4d %11llu %11llu\n",
-		     group,
-		     grp_type(common, group) == GROUP_RR ? "RR" : "Hash",
-		     i,
-		     chn_status(common, group, i) == 1 ? "ENA" : "dis",
-		     inet_ntoa(chn_ipaddr(common, group, i)),
-		     chn_port(common, group, i),
-		     chn_c(common, group, i),
-		     chn_tc(common, group, i),
-		     chn_maxc(common, group, i),
-		     chn_bsent(common, group, i),
-		     chn_breceived(common, group, i)
-		  );
-	    }
-	  }
-	}
-	b_unlock();
+          printf("%3s %4s %2s %3s %16s %5s %4s %11s %4s %11s %11s\n",
+                 "GRP", "Type", "#", "S", "ip-address", "port", "c", "totalc",
+                 "maxc", "sent", "rcvd");
+          for (group = 0; group <= MAXGROUPS; group++) {
+            for (i = 0; i < grp_nchannels(common, group); i++) {
+              printf("%3d %4s %2d %3s %16s %5d %4d %11u %4d %11llu %11llu\n",
+                     group,
+                     grp_type(common, group) == GROUP_RR ? "RR" : "Hash",
+                     i,
+                     chn_status(common, group, i) == 1 ? "ENA" : "dis",
+                     inet_ntoa(chn_ipaddr(common, group, i)),
+                     chn_port(common, group, i),
+                     chn_c(common, group, i),
+                     chn_tc(common, group, i),
+                     chn_maxc(common, group, i),
+                     chn_bsent(common, group, i),
+                     chn_breceived(common, group, i)
+                  );
+            }
+          }
+        }
+        b_unlock();
       } else if (mycmp(command, "help") || mycmp(command, "?")) {
-	printf("available commands:\n");
+        printf("available commands:\n");
 
-	printf("  create <host> <port>           creates a channel in the current group\n");
+        printf("  create <host> <port>           creates a channel in the current group\n");
         printf("  assign <channel> <host> <port> reassigns a channel in the current group\n");
-	printf("  disable <channel>              disables specified channel in current group\n");
-	printf("  enable <channel>               enables channel in current group\n");
-	printf("  group <group>                  changes current group to <group>\n");
-	printf("  hash                           sets distribution scheme of current group to Hash\n");
-	printf("  help                           prints this message\n");
-	printf("  kill                           kills master process and quits interactive mode\n");
-	printf("  maxc <channel> <maxc>          specifies new maxc for channel of current group\n");
-	printf("  mrtg-bytes <grp> <ch>          print bytes in/out in MRTG format\n");
-	printf("  mrtg-conns <grp> <ch>          print total connections in MRTG format\n");
-	printf("  quit                           quit interactive mode\n");
-	printf("  reset <channel>                reset all counters of channel in current group\n");
-	printf("  rr                             sets distribution scheme of current group to Round Robin\n");
-	printf("  show                           show all channels in all groups\n");
-	printf("  version                        show version id\n");
+        printf("  disable <channel>              disables specified channel in current group\n");
+        printf("  enable <channel>               enables channel in current group\n");
+        printf("  group <group>                  changes current group to <group>\n");
+        printf("  hash                           sets distribution scheme of current group to Hash\n");
+        printf("  help                           prints this message\n");
+        printf("  kill                           kills master process and quits interactive mode\n");
+        printf("  maxc <channel> <maxc>          specifies new maxc for channel of current group\n");
+        printf("  mrtg-bytes <grp> <ch>          print bytes in/out in MRTG format\n");
+        printf("  mrtg-conns <grp> <ch>          print total connections in MRTG format\n");
+        printf("  quit                           quit interactive mode\n");
+        printf("  reset <channel>                reset all counters of channel in current group\n");
+        printf("  rr                             sets distribution scheme of current group to Round Robin\n");
+        printf("  show                           show all channels in all groups\n");
+        printf("  version                        show version id\n");
 
       } else if (mycmp(command, "kill")) {
-	kill(common->pid, SIGKILL);
-	sleep(1);
-	if (kill(common->pid, SIGUSR1) == -1) {
-	  printf("shutdown complete, exiting.\n");
-	  common->release = 0;
-	  exit(EX_OK);
-	} else {
-	  printf("shutdown failed.\n");
-	  exit(EX_UNAVAILABLE);
-	}
+        kill(common->pid, SIGKILL);
+        sleep(1);
+        if (kill(common->pid, SIGUSR1) == -1) {
+          printf("shutdown complete, exiting.\n");
+          common->release = 0;
+          exit(EX_OK);
+        } else {
+          printf("shutdown failed.\n");
+          exit(EX_UNAVAILABLE);
+        }
       } else if (mycmp(command, "disable")) {
-	char *arg;
-	int n;
-	if ((arg = strtok(NULL, " \t\n")) != NULL) {
-	  n = atoi(arg);
-	  if (n < 0 || n >= grp_nchannels(common, currentgroup)) {
-	    printf("no such channel %d\n", n);
-	  } else {
-	    c_writelock(currentgroup, n);
-	    if (chn_status(common, currentgroup, n) == 0) {
-	      printf("channel %d already disabled\n", n);
-	    } else {
-	      chn_status(common, currentgroup, n) = 0;
-	      printf("channel %d disabled\n", n);
-	    }
-	    c_unlock(currentgroup, n);
-	  }
-	} else {
-	  printf("syntax error\n");
-	}
+        char *arg;
+        int n;
+        if ((arg = strtok(NULL, " \t\n")) != NULL) {
+          n = atoi(arg);
+          if (n < 0 || n >= grp_nchannels(common, currentgroup)) {
+            printf("no such channel %d\n", n);
+          } else {
+            c_writelock(currentgroup, n);
+            if (chn_status(common, currentgroup, n) == 0) {
+              printf("channel %d already disabled\n", n);
+            } else {
+              chn_status(common, currentgroup, n) = 0;
+              printf("channel %d disabled\n", n);
+            }
+            c_unlock(currentgroup, n);
+          }
+        } else {
+          printf("syntax error\n");
+        }
       } else if (mycmp(command, "group")) {
-	char *arg, n;
-	if ((arg = strtok(NULL, " \t\n")) != NULL) {
-	  n = atoi(arg);
-	  if (n >= MAXGROUPS || n < 0) {
-	    printf("value out of range\n");
-	  } else {
-	    currentgroup = n;
-	  }
-	} else {
-	  printf("syntax error\n");
-	}
+        char *arg, n;
+        if ((arg = strtok(NULL, " \t\n")) != NULL) {
+          n = atoi(arg);
+          if (n >= MAXGROUPS || n < 0) {
+            printf("value out of range\n");
+          } else {
+            currentgroup = n;
+          }
+        } else {
+          printf("syntax error\n");
+        }
 
-      } else if (mycmp(command, "reset")) {	// reset channel counters
-	char *arg;
-	int n;
+      } else if (mycmp(command, "reset")) {     // reset channel counters
+        char *arg;
+        int n;
 
-	if ((arg = strtok(NULL, " \t\n")) != NULL) {
-	  n = atoi(arg);
-	  if (n < 0 || n >= grp_nchannels(common, currentgroup)) {
-	    printf("no such channel %d\n", n);
-	  } else {
-	    c_writelock(currentgroup, n);
-	    chn_breceived(common, currentgroup, n) = 0;
-	    chn_bsent(common, currentgroup, n) = 0;
-	    chn_tc(common, currentgroup, n) = 0;
-	    c_unlock(currentgroup, n);
-	    printf("channel %d counters reset\n", n);
-	  }
-	} else {
-	  printf("syntax error\n");
-	}
+        if ((arg = strtok(NULL, " \t\n")) != NULL) {
+          n = atoi(arg);
+          if (n < 0 || n >= grp_nchannels(common, currentgroup)) {
+            printf("no such channel %d\n", n);
+          } else {
+            c_writelock(currentgroup, n);
+            chn_breceived(common, currentgroup, n) = 0;
+            chn_bsent(common, currentgroup, n) = 0;
+            chn_tc(common, currentgroup, n) = 0;
+            c_unlock(currentgroup, n);
+            printf("channel %d counters reset\n", n);
+          }
+        } else {
+          printf("syntax error\n");
+        }
 
       } else if (mycmp(command, "enable")) {
 
-	char *arg;
-	int n;
-	if ((arg = strtok(NULL, " \t\n")) != NULL) {
-	  n = atoi(arg);
-	  if (n < 0 || n >= grp_nchannels(common, currentgroup)) {
-	    printf("no such channel %d\n", n);
-	  } else {
-	    c_writelock(currentgroup, n);
-	    if (chn_status(common, currentgroup, n) == 1) {
-	      printf("channel %d already enabled\n", n);
-	    } else {
-	      chn_status(common, currentgroup, n) = 1;
-	      printf("channel %d enabled\n", n);
-	    }
-	    c_unlock(currentgroup, n);
-	  }
-	} else {
-	  printf("syntax error\n");
-	}
+        char *arg;
+        int n;
+        if ((arg = strtok(NULL, " \t\n")) != NULL) {
+          n = atoi(arg);
+          if (n < 0 || n >= grp_nchannels(common, currentgroup)) {
+            printf("no such channel %d\n", n);
+          } else {
+            c_writelock(currentgroup, n);
+            if (chn_status(common, currentgroup, n) == 1) {
+              printf("channel %d already enabled\n", n);
+            } else {
+              chn_status(common, currentgroup, n) = 1;
+              printf("channel %d enabled\n", n);
+            }
+            c_unlock(currentgroup, n);
+          }
+        } else {
+          printf("syntax error\n");
+        }
 
       } else if (mycmp(command, "create")) {
-	char *arg1, *arg2;
-	b_writelock();
-	if (grp_nchannels(common, currentgroup) >= MAXCHANNELS) {
-	  printf("no channel slots available\n");
-	} else {
-	  if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
-	    if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
-	      chn_status(common, currentgroup,
-			 grp_nchannels(common, currentgroup)) = 0;
-	      if (setaddress_noexitonerror
-		  (&chn_ipaddr
-		   (common, currentgroup,
-		    grp_nchannels(common, currentgroup)), &chn_port(common,
-								    currentgroup,
-								    grp_nchannels
-								    (common,
-								     currentgroup)),
-		   arg1, getport(arg2))) {
-		chn_bsent(common, currentgroup,
-			  grp_nchannels(common, currentgroup)) = 0;
-		chn_breceived(common, currentgroup,
-			      grp_nchannels(common, currentgroup)) = 0;
-		grp_nchannels(common, currentgroup)++;
-		printf("channel created\n");
-	      } else {
-		printf("invalid address\n");
-	      }
-	    } else {
-	      printf("syntax error\n");
-	    }
-	  } else {
-	    printf("syntax error\n");
-	  }
-	}
-	b_unlock();
+        char *arg1, *arg2;
+        b_writelock();
+        if (grp_nchannels(common, currentgroup) >= MAXCHANNELS) {
+          printf("no channel slots available\n");
+        } else {
+          if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
+            if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
+              chn_status(common, currentgroup,
+                         grp_nchannels(common, currentgroup)) = 0;
+              if (setaddress_noexitonerror
+                  (&chn_ipaddr
+                   (common, currentgroup,
+                    grp_nchannels(common, currentgroup)), &chn_port(common,
+                                                                    currentgroup,
+                                                                    grp_nchannels
+                                                                    (common,
+                                                                     currentgroup)),
+                   arg1, getport(arg2))) {
+                chn_bsent(common, currentgroup,
+                          grp_nchannels(common, currentgroup)) = 0;
+                chn_breceived(common, currentgroup,
+                              grp_nchannels(common, currentgroup)) = 0;
+                grp_nchannels(common, currentgroup)++;
+                printf("channel created\n");
+              } else {
+                printf("invalid address\n");
+              }
+            } else {
+              printf("syntax error\n");
+            }
+          } else {
+            printf("syntax error\n");
+          }
+        }
+        b_unlock();
 
     } else if (mycmp(command, "assign")) {
         char *arg1, *arg2, *arg3;
@@ -1455,102 +1455,102 @@ int shell(char *argument)
       }
 
     } else if (mycmp(command, "maxc")) {
-	char *arg1, *arg2;
-	b_writelock();
-	if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
-	  if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
-	    if (atoi(arg1) < 0 || atoi(arg1) >= MAXCHANNELS
-		|| atoi(arg1) + 1 > grp_nchannels(common, currentgroup)) {
-	      printf("unknown channel\n");
-	    } else {
-	      chn_maxc(common, currentgroup, atoi(arg1)) = atoi(arg2);
-	      printf("maxc of channel %d changed to %d\n", atoi(arg1),
-		     atoi(arg2));
-	    }
-	  } else {
-	    printf("syntax error\n");
-	  }
-	} else {
-	  printf("syntax error\n");
-	}
-	b_unlock();
+        char *arg1, *arg2;
+        b_writelock();
+        if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
+          if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
+            if (atoi(arg1) < 0 || atoi(arg1) >= MAXCHANNELS
+                || atoi(arg1) + 1 > grp_nchannels(common, currentgroup)) {
+              printf("unknown channel\n");
+            } else {
+              chn_maxc(common, currentgroup, atoi(arg1)) = atoi(arg2);
+              printf("maxc of channel %d changed to %d\n", atoi(arg1),
+                     atoi(arg2));
+            }
+          } else {
+            printf("syntax error\n");
+          }
+        } else {
+          printf("syntax error\n");
+        }
+        b_unlock();
 
     } else if (mycmp(command, "mrtg-bytes")) {
-	char *arg1, *arg2;
-	int mygroup, mychannel;
-	b_writelock();
-	if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
-	  if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
+        char *arg1, *arg2;
+        int mygroup, mychannel;
+        b_writelock();
+        if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
+          if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
             mygroup = atoi(arg1);
             mychannel = atoi(arg2);
-	    if (mygroup < 0 || mygroup > MAXGROUPS) { 
-	      printf("unknown group\n");
-	    } else {
-	      if(mychannel < 0 || mychannel > grp_nchannels(common, currentgroup)) {
-	        printf("unknown channel\n");
-	      } else {
-		//
-		printf("%llu\n", chn_breceived(common,mygroup,mychannel));
-		printf("%llu\n", chn_bsent(common,mygroup,mychannel));
-		printf("UNKNOWN\n");
-		printf("group %d channel %d\n",mygroup, mychannel);
-	      }
-	    }
-	  } else {
-	    printf("syntax error\n");
-	  }
-	} else {
-	  printf("syntax error\n");
-	}
-	b_unlock();
+            if (mygroup < 0 || mygroup > MAXGROUPS) {
+              printf("unknown group\n");
+            } else {
+              if(mychannel < 0 || mychannel > grp_nchannels(common, currentgroup)) {
+                printf("unknown channel\n");
+              } else {
+                //
+                printf("%llu\n", chn_breceived(common,mygroup,mychannel));
+                printf("%llu\n", chn_bsent(common,mygroup,mychannel));
+                printf("UNKNOWN\n");
+                printf("group %d channel %d\n",mygroup, mychannel);
+              }
+            }
+          } else {
+            printf("syntax error\n");
+          }
+        } else {
+          printf("syntax error\n");
+        }
+        b_unlock();
 
       } else if (mycmp(command, "mrtg-conns")) {
-	char *arg1, *arg2;
-	int mygroup, mychannel;
-	b_writelock();
-	if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
-	  if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
+        char *arg1, *arg2;
+        int mygroup, mychannel;
+        b_writelock();
+        if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
+          if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
             mygroup = atoi(arg1);
             mychannel = atoi(arg2);
-	    if (mygroup < 0 || mygroup > MAXGROUPS) { 
-	      printf("unknown group\n");
-	    } else {
-	      if(mychannel < 0 || mychannel > grp_nchannels(common, currentgroup)) {
-	        printf("unknown channel\n");
-	      } else {
-		//
-		printf("%u\n", chn_tc(common,mygroup,mychannel));
-		printf("UNKNOWN\n");
-		printf("UNKNOWN\n");
-		printf("group %d channel %d\n",mygroup, mychannel);
-	      }
-	    }
-	  } else {
-	    printf("syntax error\n");
-	  }
-	} else {
-	  printf("syntax error\n");
-	}
-	b_unlock();
+            if (mygroup < 0 || mygroup > MAXGROUPS) {
+              printf("unknown group\n");
+            } else {
+              if(mychannel < 0 || mychannel > grp_nchannels(common, currentgroup)) {
+                printf("unknown channel\n");
+              } else {
+                //
+                printf("%u\n", chn_tc(common,mygroup,mychannel));
+                printf("UNKNOWN\n");
+                printf("UNKNOWN\n");
+                printf("group %d channel %d\n",mygroup, mychannel);
+              }
+            }
+          } else {
+            printf("syntax error\n");
+          }
+        } else {
+          printf("syntax error\n");
+        }
+        b_unlock();
 
       } else if (mycmp(command, "version")) {
-	printf("  This is balance %d.%d\n", release, subrelease);
-	printf("  MAXGROUPS=%d\n", MAXGROUPS);
-	printf("  MAXCHANNELS=%d\n", MAXCHANNELS);
+        printf("  This is balance %d.%d\n", release, subrelease);
+        printf("  MAXGROUPS=%d\n", MAXGROUPS);
+        printf("  MAXCHANNELS=%d\n", MAXCHANNELS);
       } else if (mycmp(command, "hash")) {
-	b_writelock();
-	grp_type(common, currentgroup) = GROUP_HASH;
-	b_unlock();
-	printf("group %d set to hash\n", currentgroup);
+        b_writelock();
+        grp_type(common, currentgroup) = GROUP_HASH;
+        b_unlock();
+        printf("group %d set to hash\n", currentgroup);
 
       } else if (mycmp(command, "rr")) {
-	b_writelock();
-	grp_type(common, currentgroup) = GROUP_RR;
-	b_unlock();
-	printf("group %d set to round robin\n", currentgroup);
+        b_writelock();
+        grp_type(common, currentgroup) = GROUP_RR;
+        b_unlock();
+        printf("group %d set to round robin\n", currentgroup);
 
       } else {
-	printf("syntax error\n");
+        printf("syntax error\n");
       }
       // printf("\n");
     }
@@ -1604,14 +1604,14 @@ int main(int argc, char *argv[])
     case 't':
       connect_timeout = atoi(optarg);
       if (connect_timeout < 1) {
-	usage();
+        usage();
       }
       break;
     case 'T':
       sel_tmout.tv_sec = atoi(optarg);
       sel_tmout.tv_usec = 0;
       if (sel_tmout.tv_sec < 1)
-	usage();
+        usage();
       save_tmout = sel_tmout;
       break;
     case 'k':
@@ -1652,7 +1652,7 @@ int main(int argc, char *argv[])
       hashfailover = 1;
       break;
     case 'M':
-#ifdef	NO_MMAP
+#ifdef  NO_MMAP
       fprintf(stderr, "Warning: Built without memory mapped file support, using IPC\n");
 #else
       shmmapfile = 1;
@@ -1693,7 +1693,7 @@ int main(int argc, char *argv[])
   chld_action.sa_flags = SA_RESTART;
   sigemptyset(&chld_action.sa_mask);
   sigaction(SIGCHLD, &chld_action, NULL);
-  // really dump core if something fails... 
+  // really dump core if something fails...
 
 #ifdef BalanceBSD
 #else
@@ -1702,7 +1702,7 @@ int main(int argc, char *argv[])
   setrlimit(RLIMIT_CORE, &r);
 #endif
 
-  // get the source port 
+  // get the source port
 
   if ((source_port = getport(argv[0])) == 0) {
     fprintf(stderr, "invalid port [%s], exiting.\n", argv[0]);
@@ -1738,13 +1738,13 @@ int main(int argc, char *argv[])
   }
 
   sprintf(rendezvousfile, "%sbalance.%d.%s", SHMDIR, source_port,
-	  bindhost_address);
+          bindhost_address);
 
   if (stat(rendezvousfile, &buffer) == -1) {
     // File not existing yet ...
     if ((fd = open(rendezvousfile, O_CREAT | O_RDWR, 0666)) == -1) {
       fprintf(stderr, "cannot create rendezvous file %s\n",
-	      rendezvousfile);
+              rendezvousfile);
       exit(EX_OSERR);
     } else {
       debug("file %s created\n", rendezvousfile);
@@ -1755,14 +1755,14 @@ int main(int argc, char *argv[])
   }
 
   if (interactive) {
-    // command mode ! 
+    // command mode !
     if ((rendezvousfd = open(rendezvousfile, O_RDWR, 0)) < 0) {
       perror("open");
       fprintf(stderr, "check rendezvousfile permissions [%s]\n", rendezvousfile);
       exit(EX_OSERR);
     }
     if ((common =
-	 (COMMON *) shm_malloc(rendezvousfile, sizeof(COMMON))) == NULL) {
+         (COMMON *) shm_malloc(rendezvousfile, sizeof(COMMON))) == NULL) {
       fprintf(stderr, "cannot alloc COMMON struct\n");
       exit(EX_OSERR);
     }
@@ -1778,7 +1778,7 @@ int main(int argc, char *argv[])
   (void) setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &sockbufsize, sizeof(sockbufsize));
   (void) setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &sockbufsize, sizeof(sockbufsize));
 
-  // init of common (*after* bind()) 
+  // init of common (*after* bind())
 
   if (!foreground) {
     background();
@@ -1789,7 +1789,7 @@ int main(int argc, char *argv[])
   for (;;) {
     int index;
     unsigned int uindex;
-    int groupindex = 0;		// always start at groupindex 0
+    int groupindex = 0;         // always start at groupindex 0
 
     clilen = sizeof(cli_addr);
 
@@ -1805,10 +1805,10 @@ int main(int argc, char *argv[])
       fprintf(stderr, "connect from %s clilen=%d\n", buf, clilen);
     }
 
-    /* 
+    /*
      * the balancing itself:
      * - groupindex = 0
-     * - decision wich channel to use for the first try 
+     * - decision wich channel to use for the first try
      * - client address available in cli_addr
      *
      */
@@ -1817,95 +1817,95 @@ int main(int argc, char *argv[])
     for (;;) {
       index = grp_current(common, groupindex);
       for (;;) {
-	if (grp_type(common, groupindex) == GROUP_RR) {
-	  if (chn_status(common, groupindex, index) == 1 &&
-	      (chn_maxc(common, groupindex, index) == 0 ||
-	       (chn_c(common, groupindex, index) <
-		chn_maxc(common, groupindex, index)))) {
-	    break;		// channel found
-	  } else {
-	    index++;
-	    if (index >= grp_nchannels(common, groupindex)) {
-	      index = 0;
-	    }
-	    if (index == grp_current(common, groupindex)) {
-	      index = -1;	// no channel available in this group
-	      break;
-	    }
-	  }
-	} else if (grp_type(common, groupindex) == GROUP_HASH) {
-	  uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &cli_addr)->sin6_addr), clilen);
-   
+        if (grp_type(common, groupindex) == GROUP_RR) {
+          if (chn_status(common, groupindex, index) == 1 &&
+              (chn_maxc(common, groupindex, index) == 0 ||
+               (chn_c(common, groupindex, index) <
+                chn_maxc(common, groupindex, index)))) {
+            break;              // channel found
+          } else {
+            index++;
+            if (index >= grp_nchannels(common, groupindex)) {
+              index = 0;
+            }
+            if (index == grp_current(common, groupindex)) {
+              index = -1;       // no channel available in this group
+              break;
+            }
+          }
+        } else if (grp_type(common, groupindex) == GROUP_HASH) {
+          uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &cli_addr)->sin6_addr), clilen);
+
           debug("HASH-method: fold returns %u\n", uindex);
 
-	  index = uindex % grp_nchannels(common, groupindex);
-	  debug("modulo %d gives %d\n", grp_nchannels(common, groupindex), index);
-	  if (chn_status(common, groupindex, index) == 1
-	      && (chn_maxc(common, groupindex, index) == 0
-		  || (chn_c(common, groupindex, index) <
-		      chn_maxc(common, groupindex, index)))
-	      ) {
-	    break;		// channel found, channel valid for HASH
-	  } else {
-	    if (hashfailover == 1) {
-	      // if failover even if hash: try next channel in this group.
+          index = uindex % grp_nchannels(common, groupindex);
+          debug("modulo %d gives %d\n", grp_nchannels(common, groupindex), index);
+          if (chn_status(common, groupindex, index) == 1
+              && (chn_maxc(common, groupindex, index) == 0
+                  || (chn_c(common, groupindex, index) <
+                      chn_maxc(common, groupindex, index)))
+              ) {
+            break;              // channel found, channel valid for HASH
+          } else {
+            if (hashfailover == 1) {
+              // if failover even if hash: try next channel in this group.
               debug("channel disabled - hashfailover.\n");
-	      startindex = index;
-	      for (;;) {
-		index++;
-		if (index >= grp_nchannels(common, groupindex)) {
-		  index = 0;
-		}
-		if (index == startindex) {
-		  debug("no valid channel in group %d.\n", groupindex);
-		  index = -1;
-		  break;
-		}
-		if (chn_status(common, groupindex, index) == 1 &&
-		    (chn_maxc(common, groupindex, index) == 0 ||
-		     (chn_c(common, groupindex, index) <
-		      chn_maxc(common, groupindex, index)))
-		    ) {
-		  debug("channel choosen: %d in group %d.\n", index, groupindex);
-		  break;	// channel found
-		}
-	      }
+              startindex = index;
+              for (;;) {
+                index++;
+                if (index >= grp_nchannels(common, groupindex)) {
+                  index = 0;
+                }
+                if (index == startindex) {
+                  debug("no valid channel in group %d.\n", groupindex);
+                  index = -1;
+                  break;
+                }
+                if (chn_status(common, groupindex, index) == 1 &&
+                    (chn_maxc(common, groupindex, index) == 0 ||
+                     (chn_c(common, groupindex, index) <
+                      chn_maxc(common, groupindex, index)))
+                    ) {
+                  debug("channel choosen: %d in group %d.\n", index, groupindex);
+                  break;        // channel found
+                }
+              }
 
-	    } else {
-	      debug("no valid channel in group %d. Failover?\n", groupindex);
-	      index = -1;
-	    }
-	    break;
-	  }
-	} else {
-	  err_dump("PANIC: invalid group type");
-	}
+            } else {
+              debug("no valid channel in group %d. Failover?\n", groupindex);
+              index = -1;
+            }
+            break;
+          }
+        } else {
+          err_dump("PANIC: invalid group type");
+        }
       }
 
       // Hier fallen wir "raus" mit dem index in der momentanen Gruppe, oder -1
       // wenn nicht moeglich in dieser Gruppe
 
       grp_current(common, groupindex) = index;
-      grp_current(common, groupindex)++;	// current index dieser gruppe wieder null, wenn vorher ungueltig (-1)
+      grp_current(common, groupindex)++;        // current index dieser gruppe wieder null, wenn vorher ungueltig (-1)
 
-      // Der index der gruppe wird neu berechnet und gespeichert, "index" ist immer noch 
+      // Der index der gruppe wird neu berechnet und gespeichert, "index" ist immer noch
       // -1 oder der zu waehlende index...
 
       if (grp_current(common, groupindex) >=
-	  grp_nchannels(common, groupindex)) {
-	grp_current(common, groupindex) = 0;
+          grp_nchannels(common, groupindex)) {
+        grp_current(common, groupindex) = 0;
       }
 
       if (index >= 0) {
-	chn_c(common, groupindex, index)++;	// we promise a successful connection 
-	chn_tc(common, groupindex, index)++;	// also incrementing the total count 
-	// c++ 
-	break;					// index in this group found 
+        chn_c(common, groupindex, index)++;     // we promise a successful connection
+        chn_tc(common, groupindex, index)++;    // also incrementing the total count
+        // c++
+        break;                                  // index in this group found
       } else {
-	groupindex++;				// try next group !
-	if (groupindex >= MAXGROUPS) {
-	  break;				// end of groups...
-	}
+        groupindex++;                           // try next group !
+        if (groupindex >= MAXGROUPS) {
+          break;                                // end of groups...
+        }
       }
     }
 
@@ -1914,19 +1914,19 @@ int main(int argc, char *argv[])
     if (index >= 0) {
       if ((childpid = fork()) < 0) {
 
-	// the connection is rejected if fork() returns error, 
-	// but main process stays alive !
+        // the connection is rejected if fork() returns error,
+        // but main process stays alive !
 
-	log_perror(LOG_INFO, "fork");
-      } else if (childpid == 0) {	// child process 
-	close(sockfd);			// close original socket 
-	// process the request: 
+        log_perror(LOG_INFO, "fork");
+      } else if (childpid == 0) {       // child process
+        close(sockfd);                  // close original socket
+        // process the request:
 
-	stream(newsockfd, groupindex, index, (char *) &cli_addr, clilen);
-	exit(EX_OK);
+        stream(newsockfd, groupindex, index, (char *) &cli_addr, clilen);
+        exit(EX_OK);
       }
     }
 
-    close(newsockfd);		// parent process 
+    close(newsockfd);           // parent process
   }
 }
