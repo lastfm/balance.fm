@@ -1,0 +1,301 @@
+.TH BALANCE 1 "03 Dec 2010"
+.SH NAME
+balance 3.54 \- A simple TCP proxy with load balancing and failover mechanisms.
+.SH SYNOPSIS
+.B balance 
+[
+.B -b addr
+]
+[
+.B -B addr
+]
+[ 
+.B -t sec
+]
+[ 
+.B -T sec
+]
+[
+.B -adfpHM6
+] port host1[:port1[:maxc]] [!|%] [ ... hostn[:portn[:maxc]]] 
+.PP
+.B balance
+[
+.B -b addr 
+]
+.B -i
+[
+.B -d
+] [
+.B -M
+] port
+.PP
+.B balance
+[
+.B -b addr
+]
+.B -c cmd
+[
+.B -d
+]
+[
+.B -M
+] port
+.SH DESCRIPTION
+.I Balance
+is a simple, generic "userland" TCP proxy, which allows simple
+round-robin load balancing and graceful failover between
+several destination servers.
+.PP
+.I Balance 
+supports IPv6 on the listening side which makes it a very useful tool for IPv6 migration 
+of IPv4 only services and servers.
+.PP
+.I Balance 
+is available at http://balance.sourceforge.net.  
+.PP
+.I Definitions:
+A possible destination consisting of a host address and a port is called a "channel". 
+A channel is member of a "channel group". Channels are numbered in a group
+starting with 0.  Groups are numbered starting with 0, which is the
+initial default group.  
+.PP
+.I Balance
+accepts connections on the given port and forwards them to the supplied channels.
+At least one channel (in the default group) must be specified. 
+If there are two or more channels specified in a group
+.I balance
+performs a simple round-robin load balancing between the channels. 
+.PP
+.I Balance
+allows the definition of further channel groups. The connection scheme works as
+follows: 
+.I balance
+tries first to establish a connection to a channel in the first group (0), performing 
+the standard round-robin load balancing scheme. If no channel in this group is available,
+.I balance
+proceeds with the next higher channel group. Groups are simply 
+separated with a "!" at the command line at startup and can be controlled 
+interactively with the "group" command.
+.PP
+A "%" instead of a "!" as a group separator declares the previous group to be of type "hash".
+This means that instead of a round-robin algorithm, a hash distribution based on the
+client ip address is used to determine the destination channel. This allows connecting
+one client always to the same server (e.g. balancing http sessions to a single server).
+.PP
+Hosts may be specified either by hostname or by IP address. Ports may
+be specified either by name (as listed in /etc/services) or numerically.
+If no port is specified in a destination, the destination port 
+defaults to the source port that 
+.I balance
+controls.
+.PP
+.I Balance 
+allows the specification of the maximum number of connections per channel. This
+parameter can be optionally added after the port specification separated by a
+colon (":"). If a maximum number of connections is specified a channel will
+only be used for this maximum number of simultaneous connections. A maxc value of 0
+denotes an unlimited number of connections. This is the initial default value
+of a channel.
+.PP
+The maximum number of groups and channels
+.I balance
+can handle is specified at compile time and is initially 16 channels in 16 groups. 
+.PP
+Failover to another destination (a "channel") occurs if the connection is
+refused on the current channel or if the connect timeout is reached trying
+to establish a connection. If all possible destinations (channels) currently fail,
+the client connection to balance is closed. 
+.PP
+.I Balance
+accepts the following options:
+.TP
+.B 6
+Forces to bind on IPv6 socket by setting hints.ai_family to AF_INET6.
+.TP
+.B a
+Enable autodisable option: A channel needs to be manually re-enabled after
+a failure.
+.TP
+.B b
+Bindhost:
+.I Balance
+binds to the specified host (or address) for listen() instead to INADDR_ANY.
+.TP
+.B B
+Bindhost:
+.I Balance
+binds to the specified host (or address) for outgoing connections (the 
+connection will be initiated from this address).
+.TP
+.B c
+Command:
+allows to send a command to the balance master process (see interactive mode)
+.TP
+.B d
+Debug:
+.I Balance
+outputs debugging and tracing information messages on stderr.
+.TP
+.B H
+Hashfailover:
+.I Balance
+does failover to next node even if hash is used.
+.TP
+.B F
+Foreground:
+tells 
+.I balance 
+to stay in foreground. This might be useful for 
+testing and debugging since 
+.I balance 
+can be stopped in that mode using ^C (or other interrupt character).
+.TP
+.B M
+Use memory mapping for IPC instead of shared memory
+.TP
+.B i
+Interactive Control:
+.I Balance
+connects to the running instance defined by local port and bind address via
+shared memory and allows to control the behaviour of it using a 
+command line interface. The access permission using this interface are
+determined by the access restrictions of the shared memory segment in effect. 
+.I help or "?"
+prints out a short command overview, 
+.I assign
+allows to change the host_port assignment of a channel (only if disabled),
+.I create
+allows to establish a new destination definition (channel) consisting of 
+host and port in the current group,
+.I disable
+disables a channel in the current group,
+.I enable
+enables a channel again in the current group,
+.I group
+changes the current group in interactive mode where all following commands
+are targeted,
+.I hash
+changes the current group to be of type "Hash",
+.I help 
+prints out online help informations,
+.I kill
+shuts down the master process and exits interactive mode,
+.I maxc <channel> <maxc>
+sets the maximum number of connection ot the channel (0 means infinite),
+.I mrtg-bytes <group> <channel>
+prints out the bytes received/sent in MRTG compatible format (intended to be called
+with -c automatically by MRTG),
+.I mrtg-conns <group> <channel>
+prints out the total connections in MRTG compatible format (intended to be called
+with -c automatically by MRTG),
+.I quit
+exits the interactive mode,
+.I reset
+resets the byte counters of a channel, 
+.I rr
+changes the current group to be of type "Round Robin",
+.I show 
+shows an overview and the status of all channels including the incoming and
+outgoing transfer volume in bytes. The output is sorted by groups. Additionally
+the current connections (c) and the maximum allowed connections (maxc) are printed,
+.I version
+prints out the version and MAXGROUPS and MAXCHANNELS constants at compile time.
+.TP
+.B p
+Packetdump:
+.I Balance
+shows all incoming and outgoing data on stdout using a 
+simple always readable external representation of data.
+This might be useful for debugging and protocol analysis.
+.TP
+.B t
+Connect Timeout:
+the default timeout trying to establish a connection to any destination
+can be changed using this option. The default timeout after which a
+destination is regarded to be currently inaccessible is 5 seconds. 
+.TP
+.B T
+Select Timeout:
+Timeout for select(), default = 0 (never). This feature is currently 
+untested.
+.PP
+.SH EXAMPLES
+.PP
+.TP
+.B $ balance smtp host1.test.net host2.test.net
+Connection to the local SMTP port will be forwarded alterating to 
+the SMTP port on host1 and host2.
+.I Balance
+runs automatically in background.
+.PP
+.TP
+.B $ balance -b 2001:DB8::1 80 10.1.1.1 10.1.1.2 
+.I Balance
+binds on port 80 of the local IPv6 IP address 2001:DB8::1 and distributes connections
+to the IPv4 addresses 10.1.1.1 and 10.1.1.2. 
+.PP
+.TP
+.B $ balance -b ::ffff:10.1.1.3 80 10.1.1.1 10.1.1.2
+.I Balance
+binds on port 80 of the local IPv4 IP address 10.1.1.3 (provided in IPv6 notation) 
+and distributes connections to the IPv4 addresses 10.1.1.1 and 10.1.1.2. 
+.PP
+.TP
+.B $ balance -fp imap mailserver
+Connections to the local IMAP port will always be forwarded to the
+host "mailserver".
+.I Balance
+stays in foreground and all data is printed in readable format on 
+stdout.
+.PP
+.TP
+.B $ balance -f 8888 host1 10.1.1.1:8000
+Connections to the local port 8888 are forwarded alternating to host1, port 
+8888 and the host 10.1.1.1, port 8000.
+.I Balance
+stays in foreground connected to the "controlling tty".
+.PP
+.TP
+.B $ balance imap mailserver1::16 ! mailserver2
+Two groups are specified, each containing one channel member. First up to 16
+simultaneous connections are forwarded to "mailserver1". As soon as they are
+consumed, 
+.I balance 
+proceeds with the next group (1) which will consume all remaining connections
+forwarding them to the imap ort on "mailserver2".
+.PP
+.TP
+.B $ balance pop3 host1 host2 host3 ! failover1
+.I Balance
+does round robin load balancing for the three hosts in the default group 0
+for pop3 services. If all three hosts in group 0 fail, all 
+connections are then forwarded to the host "failover1".
+.PP
+.TP
+.B $ balance telnet target.munich.net::1
+Here 
+.I balance
+is used to restrict all connections to exactly one at a time forwarding the telnet port.
+.PP
+.TP
+.B $ balance 8888 localhost::12 ! localhost::4 ! localhost::2 localhost::2 ! localhost:25
+This is a simple test, forming 5 groups where balance is self referencing its own
+services 20 times. This
+is simply a test which definitely can be tried at home. 
+.SH BUGS
+In case that 
+.I balance
+is not able to forward the connection to any destination the 
+inital connection to balance is always first accepted and
+then closed again immediately. This is not in every case the
+behaviour that would have been seen directly on the destination host.
+.SH AUTHOR 
+Thomas Obermair, Inlab Software GmbH (obermair@acm.org)
+.PP
+Copyright (c) 2000-2009,2010 by Thomas Obermair (obermair@acm.org)
+and Inlab Software GmbH (http://www.inlab.de), Gruenwald, Germany.
+All rights reserved.
+.PP
+Balance is released under the GNU GENERAL PUBLIC LICENSE, see the file COPYING
+in the source code distribution.

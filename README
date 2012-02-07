@@ -1,0 +1,28 @@
+
+Welcome to the source code distribution of balance ! 
+
+Installation:
+-------------
+
+Linux (i386/itanium), FreeBSD, BSD/OS:
+	make
+	make install
+
+Solaris:
+	Uncomment the LIBRARY and INSTALL definitions in the Makefile.
+	make
+	make install
+
+If you have any problems just change the very simple Makefile to
+fit your needs. Shared memory should be enabled on your machine.
+
+For cygwin uncomment the cygwin definitions in the Makefile first.
+
+Information about new releases, mailing lists and other related issues
+can be found at the balance homepage http://balance.sourceforge.net .
+
+Reports of successful use of balance are appreciated.
+ 
+Have fun...
+Thomas Obermair <obermair@acm.org>
+
