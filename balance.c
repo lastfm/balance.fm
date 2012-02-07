@@ -120,12 +120,6 @@ static int rendezvousfd;
 static int shmfilefd;
 #endif
 
-static int err_dump(char *text) {
-  fprintf(stderr, "balance: %s\n", text);
-  fflush(stderr);
-  exit(EX_UNAVAILABLE);
-}
-
 COMMON *common;
 
 static int hashfailover = 0;
@@ -136,6 +130,7 @@ static int packetdump = 0;
 static int interactive = 0;
 static int shmmapfile = 0;
 static int bindipv6 = 0;
+static int no_std_handles = 0;
 
 static int sockbufsize = 32768;
 
@@ -150,6 +145,48 @@ static struct timeval save_tmout = { 0, 0 }; /* seconds, microseconds */
 static KEEPALIVE keepalive_server = { 0, 0, 0 };
 static KEEPALIVE keepalive_client = { 0, 0, 0 };
 
+static void log_msg(int priority, const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  if (no_std_handles) {
+    vsyslog(priority, fmt, ap);
+  } else {
+    fprintf(stderr, "balance: ");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+  }
+  va_end(ap);
+}
+
+static void log_perror(int priority, const char *str)
+{
+  const char *err = strerror(errno);
+  if (no_std_handles) {
+    syslog(priority, "%s: %s", str, err);
+  } else {
+    fprintf(stderr, "balance: %s: %s\n", str, err);
+    fflush(stderr);
+  }
+}
+
+static void debug(const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  if (debugflag && !no_std_handles) {
+    vfprintf(stderr, fmt, ap);
+    fflush(stderr);
+  }
+  va_end(ap);
+}
+
+static int err_dump(char *text) {
+  log_msg(LOG_ERR, "%s", text);
+  exit(EX_UNAVAILABLE);
+}
+
 int create_serversocket(char* node, char* service) {
   struct addrinfo hints;
   struct addrinfo *results;
@@ -159,14 +196,10 @@ int create_serversocket(char* node, char* service) {
   hints.ai_flags = AI_PASSIVE;
 
   if(bindipv6) {
-    if(debugflag) {
-      fprintf(stderr, "using AF_INET6\n");
-    }
+    debug("using AF_INET6\n");
     hints.ai_family = AF_INET6;
   } else {
-    if(debugflag) {
-      fprintf(stderr, "using AF_UNSPEC\n");
-    }
+    debug("using AF_UNSPEC\n");
     hints.ai_family = AF_UNSPEC;
   }
   hints.ai_socktype = SOCK_STREAM;
@@ -174,20 +207,20 @@ int create_serversocket(char* node, char* service) {
 
   status = getaddrinfo(node, service, &hints, &results);
   if(status != 0) {
-    fprintf(stderr,"error at getaddrinfo: %s\n", gai_strerror(status));
-    fprintf(stderr,"exiting.\n");
+    log_msg(LOG_ERR, "error at getaddrinfo: %s", gai_strerror(status));
+    log_msg(LOG_ERR, "exiting.");
     exit(EX_OSERR);
   }
 
   if(results == NULL) {
-    fprintf(stderr,"no matching results at getaddrinfo\n");
-    fprintf(stderr,"exiting.\n");
+    log_msg(LOG_ERR, "no matching results at getaddrinfo");
+    log_msg(LOG_ERR, "exiting");
     exit(EX_OSERR);
   }
 
   srv_socket = socket(results->ai_family, results->ai_socktype, results->ai_protocol);
   if(srv_socket < 0) {
-    perror("socket()");
+    log_perror(LOG_ERR, "socket");
     exit(EX_OSERR);
   }
 
@@ -205,19 +238,19 @@ int create_serversocket(char* node, char* service) {
   status = setsockopt(srv_socket, SOL_SOCKET, SO_REUSEADDR, (char*) &sockopton, sizeof(sockopton));
 
   if(status < 0) {
-    perror("setsockopt(SO_REUSEADDR=1)");
+    log_perror(LOG_ERR, "setsockopt(SO_REUSEADDR=1)");
     exit(EX_OSERR);
   }
 
   status = bind(srv_socket, results->ai_addr, results->ai_addrlen);
   if(status < 0) {
-    perror("bind()");
+    log_perror(LOG_ERR, "bind");
     exit(EX_OSERR);
   }
 
   status = listen(srv_socket, SOMAXCONN);
   if(status < 0) {
-    perror("listen()");
+    log_perror(LOG_ERR, "listen");
     exit(EX_OSERR);
   }
 
@@ -240,7 +273,7 @@ repeat:
     if (errno == EINTR) {
       goto repeat;		// 8-)
     } else {
-      perror("readlock");
+      log_perror(LOG_ERR, "readlock");
       exit(EX_OSERR);
     }
   }
@@ -270,7 +303,7 @@ repeat:
     if (errno == EINTR) {
       goto repeat;		// 8-)
     } else {
-      perror("a_writelock");
+      log_perror(LOG_ERR, "a_writelock");
       exit(EX_OSERR);
     }
   }
@@ -302,7 +335,7 @@ repeat:
     if (errno == EINTR) {
       goto repeat;		// 8-)
     } else {
-      perror("a_unlock");
+      log_perror(LOG_ERR, "a_unlock");
       exit(EX_OSERR);
     }
   }
@@ -334,12 +367,12 @@ void *shm_malloc(char *file, int size)
     strcat(shmfile, SHMFILESUFFIX);
     shmfilefd = open(shmfile, O_RDWR | O_CREAT, 0644);
     if(shmfilefd < 0) {
-      fprintf(stderr, "Warning: Cannot open file `%s', switching to IPC\n", shmfile);
+      log_msg(LOG_WARNING, "Warning: Cannot open file `%s', switching to IPC", shmfile);
       shmmapfile = 0;
     }
     if(shmmapfile) {
       if(ftruncate(shmfilefd, size) < 0) {
-        fprintf(stderr, "Warning: Cannot set file size on `%s', switching to IPC\n", shmfile);
+        log_msg(LOG_WARNING, "Warning: Cannot set file size on `%s', switching to IPC", shmfile);
         close(shmfilefd);
         shmmapfile = 0;
       }
@@ -347,7 +380,7 @@ void *shm_malloc(char *file, int size)
     if(shmmapfile) {
       data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, shmfilefd, 0);
       if(!data || data == MAP_FAILED) {
-        fprintf(stderr, "Warning: Cannot map file `%s', switching to IPC\n", shmfile);
+        log_msg(LOG_WARNING, "Warning: Cannot map file `%s', switching to IPC", shmfile);
         close(shmfilefd);
         shmmapfile = 0;
 
@@ -372,7 +405,7 @@ void *shm_malloc(char *file, int size)
     int i;
 
     if ((rendezvousfp = fdopen(rendezvousfd, "w+")) == NULL) {
-      perror("fdopen");
+      log_perror(LOG_ERR, "fdopen");
       exit(EX_OSERR);
     }
 
@@ -389,30 +422,30 @@ void *shm_malloc(char *file, int size)
       }
 
       if(fseek(rendezvousfp, 0, SEEK_SET) == -1) {
-        perror("fseek");
+        log_perror(LOG_ERR, "fseek");
         exit(EX_OSERR);
       }
       if (fprintf(rendezvousfp, "0x%08x\n", key) == -1) {
-        perror("fprintf");
+        log_perror(LOG_ERR, "fprintf");
         exit(EX_OSERR);
       }
       fflush(rendezvousfp);
     }
 #else
     if ((key = ftok(file, 'x')) == -1) {
-      perror("ftok");
+      log_perror(LOG_ERR, "ftok");
       exit(EX_SOFTWARE);
     }
 #endif
 
     if ((shmid = shmget(key, size, 0644 | IPC_CREAT)) == -1) {
-      perror("shmget");
+      log_perror(LOG_ERR, "shmget");
       exit(EX_OSERR);
     }
 
     data = shmat(shmid, (void *) 0, 0);
     if (data == (char *) (-1)) {
-     perror("shmat");
+      log_perror(LOG_ERR, "shmat");
       exit(EX_OSERR);
     }
   }
@@ -468,7 +501,7 @@ void setipaddress(struct in_addr *ipaddr, char *string)
   hent = gethostbyname(string);
   if (hent == NULL) {
     if ((ipaddr->s_addr = inet_addr(string)) == INADDR_NONE) {
-      fprintf(stderr, "unknown or invalid address [%s]\n", string);
+      log_msg(LOG_ERR, "unknown or invalid address [%s]", string);
       exit(EX_DATAERR);
     }
   } else {
@@ -489,7 +522,7 @@ void setaddress(struct in_addr *ipaddr, int *port, char *string,
   struct hostent *hent;
 
   if ((dup_string = strdup(string)) == NULL) {
-    fprintf(stderr, "strdup() failed\n");
+    log_perror(LOG_ERR, "strdup");
     exit(EX_OSERR);
   }
 
@@ -520,7 +553,7 @@ void setaddress(struct in_addr *ipaddr, int *port, char *string,
   hent = gethostbyname(dup_string);
   if (hent == NULL) {
     if ((ipaddr->s_addr = inet_addr(dup_string)) == INADDR_NONE) {
-      fprintf(stderr, "unknown or invalid address [%s]\n", dup_string);
+      log_msg(LOG_ERR, "unknown or invalid address [%s]", dup_string);
       exit(EX_DATAERR);
     }
   } else {
@@ -654,17 +687,17 @@ static void set_socket_options(int s, const KEEPALIVE *ka)
   {
     optval = ka->time;
     if (setsockopt(s, SOL_TCP, TCP_KEEPIDLE, &optval, sizeof(optval)) < 0) {
-      perror("setsockopt(TCP_KEEPIDLE)");
+      log_perror(LOG_ERR, "setsockopt(TCP_KEEPIDLE)");
       exit(EX_OSERR);
     }
     optval = ka->intvl;
     if (setsockopt(s, SOL_TCP, TCP_KEEPINTVL, &optval, sizeof(optval)) < 0) {
-      perror("setsockopt(TCP_KEEPINTVL)");
+      log_perror(LOG_ERR, "setsockopt(TCP_KEEPINTVL)");
       exit(EX_OSERR);
     }
     optval = ka->probes;
     if (setsockopt(s, SOL_TCP, TCP_KEEPCNT, &optval, sizeof(optval)) < 0) {
-      perror("setsockopt(TCP_KEEPCNT)");
+      log_perror(LOG_ERR, "setsockopt(TCP_KEEPCNT)");
       exit(EX_OSERR);
     }
   }
@@ -708,15 +741,15 @@ void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
 	c_writelock(groupindex, channelindex);
 	chn_c(common, groupindex, channelindex) -= 1;
 	c_unlock(groupindex, channelindex);
-	fprintf(stderr, "timed out after %d seconds\n",
-		(int) save_tmout.tv_sec);
+	log_msg(LOG_ERR, "timed out after %d seconds", (int) save_tmout.tv_sec);
 	exit(EX_UNAVAILABLE);
       }
       if (sr < 0 && errno != EINTR) {
+        log_perror(LOG_ERR, "select");
 	c_writelock(groupindex, channelindex);
 	chn_c(common, groupindex, channelindex) -= 1;
 	c_unlock(groupindex, channelindex);
-	err_dump("select error");
+	exit(EX_UNAVAILABLE);
       }
       if (sr > 0)
 	break;
@@ -766,14 +799,11 @@ void *stream(int arg, int groupindex, int index, char *client_address,
 
   for (;;) {
 
-    if (debugflag) {
-      fprintf(stderr, "trying group %d channel %d ... ", groupindex,
-	      index);
-      fflush(stderr);
-    }
+    debug("trying group %d channel %d ... ", groupindex, index);
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-      err_dump("can't open stream socket");
+      log_perror(LOG_ERR, "socket");
+      exit(EX_OSERR);
     }
 
     (void) setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &sockbufsize,
@@ -812,14 +842,10 @@ void *stream(int arg, int groupindex, int index, char *client_address,
     alarm(connect_timeout);
 
     if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-      if (debugflag) {
-	if (errno == EINTR) {
-	  fprintf(stderr, "timeout group %d channel %d\n", groupindex,
-		  index);
-	} else {
-	  fprintf(stderr, "connection refused group %d channel %d\n",
-		  groupindex, index);
-	}
+      if (errno == EINTR) {
+        debug("timeout group %d channel %d\n", groupindex, index);
+      } else {
+        debug("connection refused group %d channel %d\n", groupindex, index);
       }
 
       /* here we've received an error (either 'timeout' or 'connection refused')
@@ -830,13 +856,8 @@ void *stream(int arg, int groupindex, int index, char *client_address,
       chn_c(common, groupindex, index)--;
       if(autodisable) {
 	if(chn_status(common, groupindex, index) != 0) {
-	  if(foreground) {
-	    fprintf(stderr, "connection failed group %d channel %d\n", groupindex, index);
-	    fprintf(stderr, "%s:%d needs to be enabled manually using balance -i after the problem is solved\n", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
-	  } else {
-	      syslog(LOG_NOTICE,"connection failed group %d channel %d", groupindex, index);
-	      syslog(LOG_NOTICE,"%s:%d needs to be enabled manually using balance -i after the problem is solved", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
-	  }
+	  log_msg(LOG_NOTICE, "connection failed group %d channel %d", groupindex, index);
+	  log_msg(LOG_NOTICE, "%s:%d needs to be enabled manually using balance -i after the problem is solved", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
 	  chn_status(common, groupindex, index) = 0;
 	}
       }
@@ -897,14 +918,10 @@ void *stream(int arg, int groupindex, int index, char *client_address,
 	      unsigned int uindex;
 	      uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &client_address)->sin6_addr), client_address_size);
 
-	      if (debugflag) {
-		fprintf(stderr, "HASH-method: fold returns %u\n", uindex);
-              }
+	      debug("HASH-method: fold returns %u\n", uindex);
 
 	      index = uindex % grp_nchannels(common, groupindex);
-	      if (debugflag)
-		fprintf(stderr, "modulo %d gives %d\n",
-			grp_nchannels(common, groupindex), index);
+              debug("modulo %d gives %d\n", grp_nchannels(common, groupindex), index);
 
 	      if (chn_status(common, groupindex, index) == 1 &&
 		  (chn_maxc(common, groupindex, index) == 0 ||
@@ -939,9 +956,7 @@ void *stream(int arg, int groupindex, int index, char *client_address,
 
     } else {
       alarm(0);			// Cancel the alarm since we successfully connected
-      if (debugflag) {
-	fprintf(stderr, "connect to channel %d successful\n", index);
-      }
+      debug("connect to channel %d successful\n", index);
       // this prevents the 'channel 2 overload problem'
 
       b_writelock();
@@ -1051,7 +1066,7 @@ void usage(void)
 void background(void) {
   int childpid;
   if ((childpid = fork()) < 0) {
-    fprintf(stderr, "cannot fork\n");
+    perror("fork");
     exit(EX_OSERR);
   } else {
     if (childpid > 0) {
@@ -1064,7 +1079,10 @@ void background(void) {
   setpgrp();
 #endif
   if(chdir("/") <0) 
-    fprintf(stderr, "cannot chdir\n");
+    perror("chdir");
+  /* no more writing to stdout/stderr after this point, please */
+  no_std_handles = 1;
+  packetdump = 0;
   close(0);
   close(1);
   close(2);
@@ -1079,13 +1097,13 @@ COMMON *makecommon(int argc, char **argv, int source_port)
   int numchannels = argc - 1;	// port number is first argument
 
   if (numchannels >= MAXCHANNELS) {
-    fprintf(stderr, "MAXCHANNELS exceeded...\n");
+    log_msg(LOG_ERR, "MAXCHANNELS exceeded");
     exit(EX_USAGE);
   }
 
   if ((rendezvousfd = open(rendezvousfile, O_RDWR, 0)) < 0) {
-    perror("open");
-    fprintf(stderr,"check rendezvousfile permissions [%s]\n",rendezvousfile);
+    log_perror(LOG_ERR, "open");
+    log_msg(LOG_ERR, "check rendezvousfile permissions [%s]", rendezvousfile);
     exit(EX_NOINPUT);
   }
 
@@ -1093,7 +1111,7 @@ COMMON *makecommon(int argc, char **argv, int source_port)
 
   if ((mycommon =
        (COMMON *) shm_malloc(rendezvousfile, sizeof(COMMON))) == NULL) {
-    fprintf(stderr, "cannot alloc COMMON struct\n");
+    log_msg(LOG_ERR, "cannot alloc COMMON struct");
     exit(EX_OSERR);
   }
 
@@ -1153,7 +1171,7 @@ COMMON *makecommon(int argc, char **argv, int source_port)
     }
   }
 
-  if (debugflag) {
+  if (debugflag && !no_std_handles) {
     fprintf(stderr, "the following channels are active:\n");
     for (group = 0; group <= MAXGROUPS; group++) {
       for (i = 0; i < grp_nchannels(mycommon, group); i++) {
@@ -1646,10 +1664,8 @@ int main(int argc, char *argv[])
     }
   }
 
-  if (debugflag) {
-    printf("argv[0]=%s\n", argv[0]);
-    printf("bindhost=%s\n", bindhost == NULL ? "NULL" : bindhost);
-  }
+  debug("argv[0]=%s\n", argv[0]);
+  debug("bindhost=%s\n", bindhost == NULL ? "NULL" : bindhost);
 
   if (interactive) {
     foreground = 1;
@@ -1693,9 +1709,7 @@ int main(int argc, char *argv[])
     exit(EX_USAGE);
   }
 
-  if (debugflag) {
-    fprintf(stderr, "source port %d\n", source_port);
-  }
+  debug("source port %d\n", source_port);
 
   /*
    * Bind our local address so that the client can send to us.
@@ -1733,20 +1747,18 @@ int main(int argc, char *argv[])
 	      rendezvousfile);
       exit(EX_OSERR);
     } else {
-      if (debugflag)
-	fprintf(stderr, "file %s created\n", rendezvousfile);
+      debug("file %s created\n", rendezvousfile);
       close(fd);
     }
   } else {
-    if (debugflag)
-      fprintf(stderr, "file %s already exists\n", rendezvousfile);
+    debug("file %s already exists\n", rendezvousfile);
   }
 
   if (interactive) {
     // command mode ! 
     if ((rendezvousfd = open(rendezvousfile, O_RDWR, 0)) < 0) {
       perror("open");
-      fprintf(stderr,"check rendezvousfile permissions [%s]\n",rendezvousfile);
+      fprintf(stderr, "check rendezvousfile permissions [%s]\n", rendezvousfile);
       exit(EX_OSERR);
     }
     if ((common =
@@ -1783,13 +1795,11 @@ int main(int argc, char *argv[])
 
     newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
     if (newsockfd < 0) {
-      if (debugflag) {
-	fprintf(stderr, "accept error %d\n", errno);
-      }
+      log_perror(LOG_INFO, "accept");
       continue;
     }
 
-    if (debugflag) {
+    if (debugflag && !no_std_handles) {
       char buf[1024];
       inet_ntop(AF_INET6,&(((struct sockaddr_in6*) &cli_addr)->sin6_addr),buf,1024);
       fprintf(stderr, "connect from %s clilen=%d\n", buf, clilen);
@@ -1826,14 +1836,10 @@ int main(int argc, char *argv[])
 	} else if (grp_type(common, groupindex) == GROUP_HASH) {
 	  uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &cli_addr)->sin6_addr), clilen);
    
-	  if(debugflag) {
-	    fprintf(stderr, "HASH-method: fold returns %u\n", uindex);
-          }
+          debug("HASH-method: fold returns %u\n", uindex);
 
 	  index = uindex % grp_nchannels(common, groupindex);
-	  if (debugflag)
-	    fprintf(stderr, "modulo %d gives %d\n",
-		    grp_nchannels(common, groupindex), index);
+	  debug("modulo %d gives %d\n", grp_nchannels(common, groupindex), index);
 	  if (chn_status(common, groupindex, index) == 1
 	      && (chn_maxc(common, groupindex, index) == 0
 		  || (chn_c(common, groupindex, index) <
@@ -1843,8 +1849,7 @@ int main(int argc, char *argv[])
 	  } else {
 	    if (hashfailover == 1) {
 	      // if failover even if hash: try next channel in this group.
-	      if (debugflag)
-		fprintf(stderr, "channel disabled - hashfailover.\n");
+              debug("channel disabled - hashfailover.\n");
 	      startindex = index;
 	      for (;;) {
 		index++;
@@ -1852,9 +1857,7 @@ int main(int argc, char *argv[])
 		  index = 0;
 		}
 		if (index == startindex) {
-		  if (debugflag)
-		    fprintf(stderr, "no valid channel in group %d.\n",
-			    groupindex);
+		  debug("no valid channel in group %d.\n", groupindex);
 		  index = -1;
 		  break;
 		}
@@ -1863,18 +1866,13 @@ int main(int argc, char *argv[])
 		     (chn_c(common, groupindex, index) <
 		      chn_maxc(common, groupindex, index)))
 		    ) {
-		  if (debugflag)
-		    fprintf(stderr, "channel choosen: %d in group %d.\n",
-			    index, groupindex);
+		  debug("channel choosen: %d in group %d.\n", index, groupindex);
 		  break;	// channel found
 		}
 	      }
 
 	    } else {
-	      if (debugflag)
-		fprintf(stderr,
-			"no valid channel in group %d. Failover?\n",
-			groupindex);
+	      debug("no valid channel in group %d. Failover?\n", groupindex);
 	      index = -1;
 	    }
 	    break;
@@ -1919,9 +1917,7 @@ int main(int argc, char *argv[])
 	// the connection is rejected if fork() returns error, 
 	// but main process stays alive !
 
-	if (debugflag) {
-	  fprintf(stderr, "fork error\n");
-	}
+	log_perror(LOG_INFO, "fork");
       } else if (childpid == 0) {	// child process 
 	close(sockfd);			// close original socket 
 	// process the request: 

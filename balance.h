@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <strings.h>
 #include <ctype.h>
 #include <errno.h>
