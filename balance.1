@@ -15,6 +15,12 @@ balance 3.54 \- A simple TCP proxy with load balancing and failover mechanisms.
 [ 
 .B -T sec
 ]
+[ 
+.B -k t,i,p
+]
+[ 
+.B -K t,i,p
+]
 [
 .B -adfpHM6
 ] port host1[:port1[:maxc]] [!|%] [ ... hostn[:portn[:maxc]]] 
@@ -219,6 +225,11 @@ destination is regarded to be currently inaccessible is 5 seconds.
 Select Timeout:
 Timeout for select(), default = 0 (never). This feature is currently 
 untested.
+.TP
+.B k|K
+Client/Server TCP Keepalive:
+Configure idle time (seconds), interval (seconds) and number of probes
+for TCP keepalive.
 .PP
 .SH EXAMPLES
 .PP

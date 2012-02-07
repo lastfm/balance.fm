@@ -55,6 +55,12 @@
 #include <arpa/inet.h>
 #include <netinet/tcp.h>	/* for TCP_NODELAY definition */
 
+#if defined(TCP_KEEPIDLE) && defined(TCP_KEEPINTVL) && defined(TCP_KEEPCNT)
+# define BALANCE_CAN_KEEPALIVE 1
+#else
+# define BALANCE_CAN_KEEPALIVE 0
+#endif
+
 /* solaris 9, solaris 10 do not have INADDR_NONE */
 #ifndef INADDR_NONE
 #define INADDR_NONE ((unsigned long) -1)
@@ -75,6 +81,11 @@
 #define DEFAULTTIMEOUT  	5	/* timeout for unreachable hosts  */
 #define DEFAULTSELTIMEOUT  	0 	/* timeout for select             */
 
+typedef struct {
+  int time;
+  int intvl;
+  int probes;
+} KEEPALIVE;
 
 typedef struct {
   int status;

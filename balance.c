@@ -147,6 +147,9 @@ static char *outbindhost = NULL;
 static struct timeval sel_tmout  = { 0, 0 }; /* seconds, microseconds */
 static struct timeval save_tmout = { 0, 0 }; /* seconds, microseconds */
 
+static KEEPALIVE keepalive_server = { 0, 0, 0 };
+static KEEPALIVE keepalive_client = { 0, 0, 0 };
+
 int create_serversocket(char* node, char* service) {
   struct addrinfo hints;
   struct addrinfo *results;
@@ -636,6 +639,38 @@ int backward(int fromfd, int tofd, int groupindex, int channelindex)
   return (0);
 }
 
+static void set_socket_options(int s, const KEEPALIVE *ka)
+{
+  int optval = 1;
+
+  /* failure is acceptable */
+  (void) setsockopt(s, IPPROTO_TCP, TCP_NODELAY,
+    (char *)&optval, (socklen_t)sizeof(optval));
+  (void) setsockopt(s, SOL_SOCKET, SO_KEEPALIVE,
+    (char *)&optval, (socklen_t)sizeof(optval));
+
+#if BALANCE_CAN_KEEPALIVE
+  if (ka->time > 0)
+  {
+    optval = ka->time;
+    if (setsockopt(s, SOL_TCP, TCP_KEEPIDLE, &optval, sizeof(optval)) < 0) {
+      perror("setsockopt(TCP_KEEPIDLE)");
+      exit(EX_OSERR);
+    }
+    optval = ka->intvl;
+    if (setsockopt(s, SOL_TCP, TCP_KEEPINTVL, &optval, sizeof(optval)) < 0) {
+      perror("setsockopt(TCP_KEEPINTVL)");
+      exit(EX_OSERR);
+    }
+    optval = ka->probes;
+    if (setsockopt(s, SOL_TCP, TCP_KEEPCNT, &optval, sizeof(optval)) < 0) {
+      perror("setsockopt(TCP_KEEPCNT)");
+      exit(EX_OSERR);
+    }
+  }
+#endif
+}
+
 /*
  * the connection is really established, let's transfer the data
  *  as efficient as possible :-) 
@@ -646,19 +681,11 @@ void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
   fd_set readfds;
   int fdset_width;
   int sr;
-  int optone = 1;
 
   fdset_width = ((clientfd > serverfd) ? clientfd : serverfd) + 1;
 
-  /* failure is acceptable */
-  (void) setsockopt(serverfd, IPPROTO_TCP, TCP_NODELAY,
-    (char *)&optone, (socklen_t)sizeof(optone));
-  (void) setsockopt(clientfd, IPPROTO_TCP, TCP_NODELAY,
-    (char *)&optone, (socklen_t)sizeof(optone));
-  (void) setsockopt(serverfd, SOL_SOCKET, SO_KEEPALIVE,
-    (char *)&optone, (socklen_t)sizeof(optone));
-  (void) setsockopt(clientfd, SOL_SOCKET, SO_KEEPALIVE,
-    (char *)&optone, (socklen_t)sizeof(optone));
+  set_socket_options(clientfd, &keepalive_client);
+  set_socket_options(serverfd, &keepalive_server);
 
   for (;;) {
 
@@ -980,7 +1007,11 @@ void usage(void)
   fprintf(stderr, "\n");
 
   fprintf(stderr, "usage:\n");
-  fprintf(stderr, "  balance [-b addr] [-B addr] [-t sec] [-T sec] [-adfpHM] \\\n");
+  fprintf(stderr, "  balance [-b addr] [-B addr] [-t sec] [-T sec]");
+#if BALANCE_CAN_KEEPALIVE
+  fprintf(stderr,                                                " [-k t,i,p] [-K t,i,p]");
+#endif
+  fprintf(stderr,                                                                      " [-adfpHM] \\\n");
   fprintf(stderr, "          port [h1[:p1[:maxc1]] [!%%] [ ... hN[:pN[:maxcN]]]]\n");
   fprintf(stderr, "  balance [-b addr] -i [-d] port\n");
   fprintf(stderr, "  balance [-b addr] -c cmd  [-d] port\n");
@@ -992,6 +1023,10 @@ void usage(void)
   fprintf(stderr, "  -d        debugging on\n");
   fprintf(stderr, "  -f        stay in foregound\n");
   fprintf(stderr, "  -i        interactive control\n");
+#if BALANCE_CAN_KEEPALIVE
+  fprintf(stderr, "  -k t,i,p  use client TCP keepalive (time, interval, # of probes)\n");
+  fprintf(stderr, "  -K t,i,p  use server TCP keepalive (time, interval, # of probes)\n");
+#endif
   fprintf(stderr, "  -H        failover even if Hash Type is used\n");
   fprintf(stderr, "  -M        use MMAP instead of SHM for IPC\n");
   fprintf(stderr, "  -p        packetdump\n");
@@ -1528,7 +1563,7 @@ int main(int argc, char *argv[])
   connect_timeout = DEFAULTTIMEOUT;
   initialize_release_variables();
 
-  while ((c = getopt(argc, argv, "c:b:B:t:T:adfpiHM6")) != EOF) {
+  while ((c = getopt(argc, argv, "c:b:B:t:T:k:K:adfpiHM6")) != EOF) {
     switch (c) {
     case '6':
       bindipv6 = 1;
@@ -1560,6 +1595,26 @@ int main(int argc, char *argv[])
       if (sel_tmout.tv_sec < 1)
 	usage();
       save_tmout = sel_tmout;
+      break;
+    case 'k':
+    case 'K':
+#if BALANCE_CAN_KEEPALIVE
+      {
+        KEEPALIVE *ka = c == 'k' ? &keepalive_client : &keepalive_server;
+        char *p;
+        ka->time = strtol(optarg, &p, 10);
+        if (*p != ',' || ka->time <= 0)
+          usage();
+        ka->intvl = strtol(p + 1, &p, 10);
+        if (*p != ',' || ka->intvl <= 0)
+          usage();
+        ka->probes = strtol(p + 1, &p, 10);
+        if (*p != '\0' || ka->probes <= 0)
+          usage();
+      }
+#else
+      usage();
+#endif
       break;
     case 'f':
       foreground = 1;
