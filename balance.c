@@ -181,12 +181,14 @@ static void debug(const char *fmt, ...)
   va_end(ap);
 }
 
-static int err_dump(char *text) {
+int err_dump(const char *text)
+{
   log_msg(LOG_ERR, "%s", text);
   exit(EX_UNAVAILABLE);
 }
 
-int create_serversocket(char* node, char* service) {
+static int create_serversocket(char* node, char* service)
+{
   struct addrinfo hints;
   struct addrinfo *results;
   int srv_socket, status, sockopton, sockoptoff;
@@ -258,7 +260,8 @@ int create_serversocket(char* node, char* service) {
 
 /* locking ... */
 
-int a_readlock(off_t start, off_t len) {
+static int a_readlock(off_t start __attribute__((unused)), off_t len __attribute__((unused)))
+{
   int rc;
   struct flock fdata;
   fdata.l_type = F_RDLCK;
@@ -279,16 +282,19 @@ repeat:
   return (rc);
 }
 
-void b_readlock(void) {
+static void b_readlock(void)
+{
   a_readlock(0, 0);
 }
 
-void c_readlock(int group, int channel) {
+static void c_readlock(int group, int channel)
+{
   a_readlock(((char *) &(grp_channel(common, group, channel))) -
              (char *) common, sizeof(CHANNEL));
 }
 
-int a_writelock(off_t start, off_t len) {
+static int a_writelock(off_t start __attribute__((unused)), off_t len __attribute__((unused)))
+{
   int rc;
   struct flock fdata;
   fdata.l_type = F_WRLCK;
@@ -309,17 +315,18 @@ repeat:
   return (rc);
 }
 
-void b_writelock(void) {
+static void b_writelock(void)
+{
   a_writelock(0, 0);
 }
 
-void c_writelock(int group, int channel)
+static void c_writelock(int group, int channel)
 {
   a_writelock(((char *) &(grp_channel(common, group, channel))) -
               (char *) common, sizeof(CHANNEL));
 }
 
-int a_unlock(off_t start, off_t len)
+static int a_unlock(off_t start __attribute__((unused)), off_t len __attribute__((unused)))
 {
   int rc;
   struct flock fdata;
@@ -341,18 +348,18 @@ repeat:
   return (rc);
 }
 
-void b_unlock(void)
+static void b_unlock(void)
 {
   a_unlock(0, 0);
 }
 
-void c_unlock(int group, int channel)
+static void c_unlock(int group, int channel)
 {
   a_unlock(((char *) &(grp_channel(common, group, channel))) -
            (char *) common, sizeof(CHANNEL));
 }
 
-void *shm_malloc(char *file, int size)
+static void *shm_malloc(char *file, int size)
 {
   char *data = NULL;
   key_t key;
@@ -454,7 +461,7 @@ void *shm_malloc(char *file, int size)
 
 /* readable output of a packet (-p) */
 
-void print_packet(unsigned char *s, int l)
+static void print_packet(unsigned char *s, int l)
 {
   int i, cc;
   cc = 0;
@@ -483,7 +490,7 @@ void print_packet(unsigned char *s, int l)
   printf("\n");
 }
 
-int getport(char *port)
+static int getport(char *port)
 {
   struct servent *sp;
   sp = getservbyname(port, "tcp");
@@ -494,7 +501,7 @@ int getport(char *port)
   }
 }
 
-void setipaddress(struct in_addr *ipaddr, char *string)
+static void setipaddress(struct in_addr *ipaddr, char *string)
 {
   struct hostent *hent;
   hent = gethostbyname(string);
@@ -508,8 +515,8 @@ void setipaddress(struct in_addr *ipaddr, char *string)
   }
 }
 
-void setaddress(struct in_addr *ipaddr, int *port, char *string,
-                int default_port, int *maxc)
+static void setaddress(struct in_addr *ipaddr, int *port, char *string,
+                       int default_port, int *maxc)
 {
   char *host_string = NULL;
   char *port_string = NULL;
@@ -571,8 +578,8 @@ void setaddress(struct in_addr *ipaddr, int *port, char *string,
   free(dup_string);
 }
 
-int setaddress_noexitonerror(struct in_addr *ipaddr, int *port,
-                             char *string, int default_port)
+static int setaddress_noexitonerror(struct in_addr *ipaddr, int *port,
+                                    char *string, int default_port)
 {
   char *host_string;
   char *port_string;
@@ -621,7 +628,7 @@ int readline(int fd, char *ptr, int maxlen)
   return (n);
 }
 
-int forward(int fromfd, int tofd, int groupindex, int channelindex)
+static int forward(int fromfd, int tofd, int groupindex, int channelindex)
 {
   ssize_t rc;
   unsigned char buffer[MAXTXSIZE];
@@ -646,7 +653,7 @@ int forward(int fromfd, int tofd, int groupindex, int channelindex)
   return (0);
 }
 
-int backward(int fromfd, int tofd, int groupindex, int channelindex)
+static int backward(int fromfd, int tofd, int groupindex, int channelindex)
 {
   ssize_t rc;
   unsigned char buffer[MAXTXSIZE];
@@ -708,7 +715,7 @@ static void set_socket_options(int s, const KEEPALIVE *ka)
  *  as efficient as possible :-)
  */
 
-void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
+static void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
 {
   fd_set readfds;
   int fdset_width;
@@ -770,13 +777,15 @@ void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
   exit(EX_OK);
 }
 
-void alrm_handler(int signo) {
+static void alrm_handler(int signo __attribute__((unused)))
+{
 }
 
 void usr1_handler(int signo) {
 }
 
-void chld_handler(int signo) {
+static void chld_handler(int signo __attribute__((unused)))
+{
   int status;
   while (waitpid(-1, &status, WNOHANG) > 0);
 }
@@ -785,8 +794,9 @@ void chld_handler(int signo) {
  * a channel in a group is selected and we try to establish a connection
  */
 
-void *stream(int arg, int groupindex, int index, char *client_address,
-             int client_address_size) {
+static void *stream(int arg, int groupindex, int index, char *client_address,
+                    int client_address_size)
+{
   int startindex;
   int sockfd;
   int clientfd;
@@ -980,8 +990,7 @@ void *stream(int arg, int groupindex, int index, char *client_address,
   exit(EX_OK);
 }
 
-static
-void usage(void)
+static void usage(void)
 {
   fprintf(stderr," _           _                         __\n");
   fprintf(stderr,"| |__   __ _| | __ _ _ __   ___ ___   / _|_ __ ___\n");
@@ -1037,7 +1046,8 @@ void usage(void)
 
 // goto background:
 
-void background(void) {
+static void background(void)
+{
   int childpid;
   if ((childpid = fork()) < 0) {
     perror("fork");
@@ -1062,7 +1072,7 @@ void background(void) {
   close(2);
 }
 
-COMMON *makecommon(int argc, char **argv, int source_port)
+static COMMON *makecommon(int argc, char **argv, int source_port)
 {
   int i;
   int group;
@@ -1163,7 +1173,7 @@ COMMON *makecommon(int argc, char **argv, int source_port)
   return (mycommon);
 }
 
-int mycmp(char *s1, char *s2)
+static int mycmp(char *s1, char *s2)
 {
   int l;
   l = strlen(s1) < strlen(s2) ? strlen(s1) : strlen(s2);
@@ -1174,7 +1184,7 @@ int mycmp(char *s1, char *s2)
   }
 }
 
-int shell(char *argument)
+static int shell(char *argument)
 {
   int i;
   int currentgroup = 0;
