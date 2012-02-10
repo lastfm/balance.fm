@@ -10,8 +10,6 @@
 
 #include "balance.h"
 
-char* butils_rcsid="$Id: butils.c,v 1.1 2010/01/29 10:40:16 t Exp $";
-
 unsigned int hash_fold(unsigned char* s, int len)
 {
   unsigned int rc = 0;
