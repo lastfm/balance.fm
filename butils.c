@@ -10,18 +10,19 @@
 
 #include "balance.h"
 
-unsigned int hash_fold(unsigned char* s, int len)
+unsigned int hash_fold(const void *ptr, int len)
 {
+  const unsigned char *s = ptr;
   unsigned int rc = 0;
-  int i;
-  for (i=0; i<len; i++) {
+
+  for (int i = 0; i < len; i++) {
     rc = s[i] + 31 * rc;
   }
 
-  return(rc);
+  return rc;
 }
 
-ssize_t writen(int fd, unsigned char *ptr, size_t nbytes)
+ssize_t writen(int fd, const unsigned char *ptr, size_t nbytes)
 {
   int nleft;
   ssize_t nwritten;
@@ -31,11 +32,12 @@ ssize_t writen(int fd, unsigned char *ptr, size_t nbytes)
   while (nleft > 0) {
     nwritten = write(fd, ptr, nleft);
     if (nwritten <= 0) {
-      return (nwritten);        /* error */
+      return nwritten;        /* error */
     }
     nleft -= nwritten;
     ptr += nwritten;
   }
 
-  return (nbytes - nleft);
+  return nbytes - nleft;
+}
 }

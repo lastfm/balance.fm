@@ -187,7 +187,7 @@ int err_dump(const char *text)
   exit(EX_UNAVAILABLE);
 }
 
-static int create_serversocket(char* node, char* service)
+static int create_serversocket(const char *node, const char *service)
 {
   struct addrinfo hints;
   struct addrinfo *results;
@@ -461,7 +461,7 @@ static void *shm_malloc(char *file, int size)
 
 /* readable output of a packet (-p) */
 
-static void print_packet(unsigned char *s, int l)
+static void print_packet(const unsigned char *s, int l)
 {
   int i, cc;
   cc = 0;
@@ -490,7 +490,7 @@ static void print_packet(unsigned char *s, int l)
   printf("\n");
 }
 
-static int getport(char *port)
+static int getport(const char *port)
 {
   struct servent *sp;
   sp = getservbyname(port, "tcp");
@@ -501,7 +501,7 @@ static int getport(char *port)
   }
 }
 
-static void setipaddress(struct in_addr *ipaddr, char *string)
+static void setipaddress(struct in_addr *ipaddr, const char *string)
 {
   struct hostent *hent;
   hent = gethostbyname(string);
@@ -515,7 +515,7 @@ static void setipaddress(struct in_addr *ipaddr, char *string)
   }
 }
 
-static void setaddress(struct in_addr *ipaddr, int *port, char *string,
+static void setaddress(struct in_addr *ipaddr, int *port, const char *string,
                        int default_port, int *maxc)
 {
   char *host_string = NULL;
@@ -579,17 +579,22 @@ static void setaddress(struct in_addr *ipaddr, int *port, char *string,
 }
 
 static int setaddress_noexitonerror(struct in_addr *ipaddr, int *port,
-                                    char *string, int default_port)
+                                    const char *string, int default_port)
 {
-  char *host_string;
-  char *port_string;
-  struct hostent *hent;
-  host_string = strtok(string, ":");
-  port_string = strtok(NULL, ":");
-  hent = gethostbyname(string);
+  char *dup_string = strdup(string);
+
+  if (dup_string == NULL) {
+    return 0;
+  }
+
+  char *host_string = strtok(dup_string, ":");
+  char *port_string = strtok(NULL, ":");
+  struct hostent *hent = gethostbyname(host_string);
+
   if (hent == NULL) {
     if ((ipaddr->s_addr = inet_addr(string)) == INADDR_NONE) {
-      return (0);
+      free(dup_string);
+      return 0;
     }
   } else {
     memcpy(ipaddr, hent->h_addr, hent->h_length);
@@ -600,32 +605,10 @@ static int setaddress_noexitonerror(struct in_addr *ipaddr, int *port,
   } else {
     *port = default_port;
   }
-  return (1);
-}
 
-int readline(int fd, char *ptr, int maxlen)
-{
-  int n, rc;
-  char c;
+  free(dup_string);
 
-  for (n = 1; n < maxlen; n++) {
-    if ((rc = read(fd, &c, 1)) == 1) {
-      *ptr++ = c;
-      if (c == '\n') {
-        break;
-      }
-    } else if (rc == 0) {
-      if (n == 1) {
-        return (0);             // EOF, no data read
-      } else {
-        break;                  // EOF, some data was read
-      }
-    } else {
-      return (-1);              // error
-    }
-  }
-  *ptr = 0;
-  return (n);
+  return 1;
 }
 
 static int forward(int fromfd, int tofd, int groupindex, int channelindex)
@@ -794,7 +777,7 @@ static void chld_handler(int signo __attribute__((unused)))
  * a channel in a group is selected and we try to establish a connection
  */
 
-static void *stream(int arg, int groupindex, int index, char *client_address,
+static void *stream(int arg, int groupindex, int index, const void *client_address,
                     int client_address_size)
 {
   int startindex;
@@ -827,7 +810,7 @@ static void *stream(int arg, int groupindex, int index, char *client_address,
 
     if (outbindhost != NULL) {
       struct sockaddr_in outbind_addr;
-      bzero((char *) &outbind_addr, sizeof(outbind_addr));
+      bzero(&outbind_addr, sizeof(outbind_addr));
       outbind_addr.sin_family = AF_INET;
       setipaddress(&outbind_addr.sin_addr, outbindhost);
       if (bind
@@ -837,7 +820,7 @@ static void *stream(int arg, int groupindex, int index, char *client_address,
     }
 
     b_readlock();
-    bzero((char *) &serv_addr, sizeof(serv_addr));
+    bzero(&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr =
         chn_ipaddr(common, groupindex, index).s_addr;
@@ -925,7 +908,7 @@ static void *stream(int arg, int groupindex, int index, char *client_address,
               break;
             } else if (grp_type(common, groupindex) == GROUP_HASH) {
               unsigned int uindex;
-              uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &client_address)->sin6_addr), client_address_size);
+              uindex = hash_fold(&(((struct sockaddr_in6 *) &client_address)->sin6_addr), client_address_size);
 
               debug("HASH-method: fold returns %u\n", uindex);
 
@@ -1173,7 +1156,7 @@ static COMMON *makecommon(int argc, char **argv, int source_port)
   return (mycommon);
 }
 
-static int mycmp(char *s1, char *s2)
+static int mycmp(const char *s1, const char *s2)
 {
   int l;
   l = strlen(s1) < strlen(s2) ? strlen(s1) : strlen(s2);
@@ -1184,7 +1167,7 @@ static int mycmp(char *s1, char *s2)
   }
 }
 
-static void shell(char *argument)
+static void shell(const char *argument)
 {
   int i;
   int currentgroup = 0;
@@ -1817,7 +1800,7 @@ int main(int argc, char *argv[])
             }
           }
         } else if (grp_type(common, groupindex) == GROUP_HASH) {
-          uindex = hash_fold((unsigned char*) &(((struct sockaddr_in6 *) &cli_addr)->sin6_addr), clilen);
+          uindex = hash_fold(&(((struct sockaddr_in6 *) &cli_addr)->sin6_addr), clilen);
 
           debug("HASH-method: fold returns %u\n", uindex);
 
@@ -1905,7 +1888,7 @@ int main(int argc, char *argv[])
         close(sockfd);                  // close original socket
         // process the request:
 
-        stream(newsockfd, groupindex, index, (char *) &cli_addr, clilen);
+        stream(newsockfd, groupindex, index, &cli_addr, clilen);
         exit(EX_OK);
       }
     }

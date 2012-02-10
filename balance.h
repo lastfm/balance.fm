@@ -140,5 +140,5 @@ typedef struct {
 /*
  * function prototypes
  */
-unsigned int hash_fold(unsigned char *, int);
-ssize_t writen(int, unsigned char *, size_t);
+unsigned int hash_fold(const void *, int);
+ssize_t writen(int, const unsigned char *, size_t);
