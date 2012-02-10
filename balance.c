@@ -440,7 +440,7 @@ static void *shm_malloc(char *file, int size)
 #else
     if ((key = ftok(file, 'x')) == -1) {
       log_perror(LOG_ERR, "ftok");
-      exit(EX_SOFTWARE);
+      exit(EX_OSERR);
     }
 #endif
 
@@ -1157,7 +1157,7 @@ static COMMON *makecommon(int argc, char **argv, int source_port)
 
   if (debugflag && !no_std_handles) {
     fprintf(stderr, "the following channels are active:\n");
-    for (group = 0; group <= MAXGROUPS; group++) {
+    for (group = 0; group < MAXGROUPS; group++) {
       for (i = 0; i < grp_nchannels(mycommon, group); i++) {
         fprintf(stderr, "%3d %2d %s:%d:%d\n",
                 group,
@@ -1184,7 +1184,7 @@ static int mycmp(char *s1, char *s2)
   }
 }
 
-static int shell(char *argument)
+static void shell(char *argument)
 {
   int i;
   int currentgroup = 0;
@@ -1242,7 +1242,7 @@ static int shell(char *argument)
           printf("%3s %4s %2s %3s %16s %5s %4s %11s %4s %11s %11s\n",
                  "GRP", "Type", "#", "S", "ip-address", "port", "c", "totalc",
                  "maxc", "sent", "rcvd");
-          for (group = 0; group <= MAXGROUPS; group++) {
+          for (group = 0; group < MAXGROUPS; group++) {
             for (i = 0; i < grp_nchannels(common, group); i++) {
               printf("%3d %4s %2d %3s %16s %5d %4d %11u %4d %11llu %11llu\n",
                      group,
@@ -1467,7 +1467,7 @@ static int shell(char *argument)
           if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
             mygroup = atoi(arg1);
             mychannel = atoi(arg2);
-            if (mygroup < 0 || mygroup > MAXGROUPS) {
+            if (mygroup < 0 || mygroup >= MAXGROUPS) {
               printf("unknown group\n");
             } else {
               if(mychannel < 0 || mychannel > grp_nchannels(common, currentgroup)) {
@@ -1496,7 +1496,7 @@ static int shell(char *argument)
           if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
             mygroup = atoi(arg1);
             mychannel = atoi(arg2);
-            if (mygroup < 0 || mygroup > MAXGROUPS) {
+            if (mygroup < 0 || mygroup >= MAXGROUPS) {
               printf("unknown group\n");
             } else {
               if(mychannel < 0 || mychannel > grp_nchannels(common, currentgroup)) {

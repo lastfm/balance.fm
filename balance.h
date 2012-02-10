@@ -37,9 +37,7 @@
 #define BalanceBSD 1
 #endif
 
-#ifdef BalanceBSD
-#include <sys/wait.h>
-#else
+#ifndef BalanceBSD
 #include <sys/resource.h>
 #endif
 
@@ -142,5 +140,5 @@ typedef struct {
 /*
  * function prototypes
  */
-unsigned int hash_fold(char *, int);
+unsigned int hash_fold(unsigned char *, int);
 ssize_t writen(int, unsigned char *, size_t);
