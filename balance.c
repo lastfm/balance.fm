@@ -1705,7 +1705,7 @@ int main(int argc, char *argv[])
     umask(old);
   }
 
-  sprintf(rendezvousfile, "%sbalance.%d.%s", SHMDIR, source_port,
+  sprintf(rendezvousfile, "%sbalance.fm.%d.%s", SHMDIR, source_port,
           bindhost_address);
 
   if (stat(rendezvousfile, &buffer) == -1) {
