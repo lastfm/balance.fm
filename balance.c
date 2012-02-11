@@ -135,6 +135,8 @@ static int sockbufsize = 32768;
 
 static int connect_timeout;
 
+static sig_atomic_t interrupted = 0;
+
 static char *bindhost = NULL;
 static char *outbindhost = NULL;
 
@@ -762,7 +764,9 @@ static void alrm_handler(int signo __attribute__((unused)))
 {
 }
 
-void usr1_handler(int signo) {
+static void quit_handler(int signo __attribute__((unused)))
+{
+  interrupted = 1;
 }
 
 static void chld_handler(int signo __attribute__((unused)))
@@ -1193,7 +1197,7 @@ static void shell(const char *argument)
     exit(EX_DATAERR);
   }
 
-  if (kill(common->pid, SIGUSR1) == -1) {
+  if (kill(common->pid, 0) == -1) {
     printf("no master process with pid %d, exiting.\n", common->pid);
     exit(EX_UNAVAILABLE);
   }
@@ -1267,9 +1271,9 @@ static void shell(const char *argument)
         printf("  version                        show version id\n");
 
       } else if (mycmp(command, "kill")) {
-        kill(common->pid, SIGKILL);
+        kill(common->pid, SIGTERM);
         sleep(1);
-        if (kill(common->pid, SIGUSR1) == -1) {
+        if (kill(common->pid, 0) == -1) {
           printf("shutdown complete, exiting.\n");
           common->release = 0;
           exit(EX_OK);
@@ -1541,9 +1545,8 @@ int main(int argc, char *argv[])
   char *argument = NULL;
   struct stat buffer;
   struct sockaddr_storage cli_addr;
-  struct sigaction usr1_action, chld_action;
-#ifdef BalanceBSD
-#else
+  struct sigaction chld_action, quit_action;
+#ifndef BalanceBSD
   struct rlimit r;
 #endif
 
@@ -1652,15 +1655,21 @@ int main(int argc, char *argv[])
       usage();
     }
   }
-  usr1_action.sa_handler = usr1_handler;
-  usr1_action.sa_flags = SA_RESTART;
-  sigemptyset(&usr1_action.sa_mask);
-  sigaction(SIGUSR1, &usr1_action, NULL);
 
-  chld_action.sa_handler = chld_handler;
-  chld_action.sa_flags = SA_RESTART;
-  sigemptyset(&chld_action.sa_mask);
-  sigaction(SIGCHLD, &chld_action, NULL);
+  if (!interactive) {
+    chld_action.sa_handler = chld_handler;
+    chld_action.sa_flags = SA_RESTART;
+    sigemptyset(&chld_action.sa_mask);
+    sigaction(SIGCHLD, &chld_action, NULL);
+
+    quit_action.sa_handler = quit_handler;
+    quit_action.sa_flags = SA_RESTART;
+    sigemptyset(&quit_action.sa_mask);
+    sigaction(SIGQUIT, &quit_action, NULL);
+    sigaction(SIGTERM, &quit_action, NULL);
+    sigaction(SIGINT, &quit_action, NULL);
+  }
+
   // really dump core if something fails...
 
 #ifdef BalanceBSD
@@ -1754,12 +1763,34 @@ int main(int argc, char *argv[])
 
   common = makecommon(argc, argv, source_port);
 
-  for (;;) {
+  sigset_t block_mask, orig_mask;
+  sigemptyset(&block_mask);
+  sigaddset(&block_mask, SIGTERM);
+  sigaddset(&block_mask, SIGQUIT);
+  sigaddset(&block_mask, SIGINT);
+
+  if (sigprocmask(SIG_BLOCK, &block_mask, &orig_mask) < 0) {
+    log_perror(LOG_ERR, "sigprocmask");
+    return 1;
+  }
+
+  fd_set fds;
+  FD_ZERO(&fds);
+  FD_SET(sockfd, &fds);
+
+  while (!interrupted) {
     int index;
     unsigned int uindex;
     int groupindex = 0;         // always start at groupindex 0
 
     clilen = sizeof(cli_addr);
+
+    if (pselect(sockfd + 1, &fds, NULL, NULL, NULL, &orig_mask) < 0) {
+      if (errno != EINTR) {
+        log_perror(LOG_INFO, "pselect");
+      }
+      continue;
+    }
 
     newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
     if (newsockfd < 0) {
@@ -1896,4 +1927,8 @@ int main(int argc, char *argv[])
 
     close(newsockfd);           // parent process
   }
+
+  debug("terminating\n");
+
+  return 0;
 }
