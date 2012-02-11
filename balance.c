@@ -361,7 +361,7 @@ static void c_unlock(int group, int channel)
            (char *) common, sizeof(CHANNEL));
 }
 
-static void *shm_malloc(char *file, int size)
+static void *shm_malloc(const char *file, size_t size, bool create, int *p_shmid)
 {
   char *data = NULL;
   key_t key;
@@ -446,7 +446,54 @@ static void *shm_malloc(char *file, int size)
     }
 #endif
 
-    if ((shmid = shmget(key, size, 0644 | IPC_CREAT)) == -1) {
+    if ((shmid = shmget(key, 0, 0644)) == -1) {
+      if (errno == ENOENT) {
+        if (!create) {
+          return NULL;
+        }
+      } else {
+        log_perror(LOG_ERR, "shmget");
+        exit(EX_OSERR);
+      }
+    } else {
+      debug("shared memory segment already exists\n");
+
+      struct shmid_ds shminfo;
+
+      if (shmctl(shmid, IPC_STAT, &shminfo) < 0) {
+        log_perror(LOG_ERR, "shmctl");
+        exit(EX_OSERR);
+      }
+
+      if (shminfo.shm_segsz != size) {
+        debug("shared memory segment is incompatible\n");
+
+        if (shminfo.shm_nattch == 0) {
+          debug("attempting to remove incompatible shared memory segment\n");
+
+          /* attempt to remove segment if no one is attached (yes, there's a race condition here... oh well) */
+          if (shmctl(shmid, IPC_RMID, NULL) < 0) {
+            log_perror(LOG_ERR, "shmctl");
+            exit(EX_OSERR);
+          }
+        } else {
+          log_msg(LOG_ERR, "cannot attach to incompatible memory segment and unable to remove it (key=0x%08x, size=%u)",
+                           (unsigned) key, (unsigned) shminfo.shm_segsz);
+          exit(EX_SOFTWARE);
+        }
+      }
+    }
+
+    int flags = 0644;
+
+    if (create) {
+      flags |= IPC_CREAT;
+    }
+
+    if ((shmid = shmget(key, size, flags)) == -1) {
+      if (errno == ENOENT && !create) {
+        return NULL;
+      }
       log_perror(LOG_ERR, "shmget");
       exit(EX_OSERR);
     }
@@ -458,7 +505,20 @@ static void *shm_malloc(char *file, int size)
     }
   }
 
-  return (data);
+  if (p_shmid) {
+    *p_shmid = shmid;
+  }
+
+  return data;
+}
+
+void shm_destroy(int shmid)
+{
+  /* ensure that the last attached process cleans up after itself */
+  if (shmctl(shmid, IPC_RMID, NULL) < 0) {
+    log_perror(LOG_ERR, "shmctl");
+    exit(EX_OSERR);
+  }
 }
 
 /* readable output of a packet (-p) */
@@ -1057,7 +1117,7 @@ static void background(void)
   close(2);
 }
 
-static COMMON *makecommon(int argc, char **argv, int source_port)
+static COMMON *makecommon(int argc, char **argv, int source_port, int *p_shmid)
 {
   int i;
   int group;
@@ -1079,7 +1139,7 @@ static COMMON *makecommon(int argc, char **argv, int source_port)
   b_writelock();
 
   if ((mycommon =
-       (COMMON *) shm_malloc(rendezvousfile, sizeof(COMMON))) == NULL) {
+       (COMMON *) shm_malloc(rendezvousfile, sizeof(COMMON), true, p_shmid)) == NULL) {
     log_msg(LOG_ERR, "cannot alloc COMMON struct");
     exit(EX_OSERR);
   }
@@ -1537,7 +1597,7 @@ char bindhost_address[FILENAMELEN];
 int main(int argc, char *argv[])
 {
   int startindex;
-  int sockfd, newsockfd, childpid;
+  int sockfd, newsockfd, childpid, shmid;
   unsigned int clilen;
   int c;
   int source_port;
@@ -1739,9 +1799,9 @@ int main(int argc, char *argv[])
       exit(EX_OSERR);
     }
     if ((common =
-         (COMMON *) shm_malloc(rendezvousfile, sizeof(COMMON))) == NULL) {
-      fprintf(stderr, "cannot alloc COMMON struct\n");
-      exit(EX_OSERR);
+         (COMMON *) shm_malloc(rendezvousfile, sizeof(COMMON), false, NULL)) == NULL) {
+      fprintf(stderr, "no shared memory segment found, maybe there is no master process running?\n");
+      exit(EX_SOFTWARE);
     }
     shell(argument);
   }
@@ -1761,7 +1821,7 @@ int main(int argc, char *argv[])
     background();
   }
 
-  common = makecommon(argc, argv, source_port);
+  common = makecommon(argc, argv, source_port, &shmid);
 
   sigset_t block_mask, orig_mask;
   sigemptyset(&block_mask);
@@ -1927,6 +1987,8 @@ int main(int argc, char *argv[])
 
     close(newsockfd);           // parent process
   }
+
+  shm_destroy(shmid);
 
   debug("terminating\n");
 
