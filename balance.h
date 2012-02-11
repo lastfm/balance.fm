@@ -80,6 +80,12 @@
 #define DEFAULTTIMEOUT          5       /* timeout for unreachable hosts  */
 #define DEFAULTSELTIMEOUT       0       /* timeout for select             */
 
+enum channel_status {
+  CS_DISABLED,                  /* hard disabled (manually in shell)  */
+  CS_ENABLED,                   /* enabled                            */
+  CS_DISABLED_SOFT              /* soft disabled (by monitoring)      */
+};
+
 typedef struct {
   int time;
   int intvl;
@@ -87,7 +93,7 @@ typedef struct {
 } KEEPALIVE;
 
 typedef struct {
-  int status;
+  enum channel_status status;
   int port;
   struct in_addr ipaddr;
   int c;                        /* current # of connections           */

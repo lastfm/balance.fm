@@ -845,10 +845,10 @@ static void *stream(int arg, int groupindex, int index, const void *client_addre
       c_writelock(groupindex, index);
       chn_c(common, groupindex, index)--;
       if(autodisable) {
-        if(chn_status(common, groupindex, index) != 0) {
+        if(chn_status(common, groupindex, index) == CS_ENABLED) {
           log_msg(LOG_NOTICE, "connection failed group %d channel %d", groupindex, index);
           log_msg(LOG_NOTICE, "%s:%d needs to be enabled manually using balance.fm -i after the problem is solved", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
-          chn_status(common, groupindex, index) = 0;
+          chn_status(common, groupindex, index) = CS_DISABLED_SOFT;
         }
       }
       c_unlock(groupindex, index);
@@ -865,7 +865,7 @@ static void *stream(int arg, int groupindex, int index, const void *client_addre
               index = -1;       // Giveup
               break;
             }
-            if (chn_status(common, groupindex, index) == 1 &&
+            if (chn_status(common, groupindex, index) == CS_ENABLED &&
                 (chn_maxc(common, groupindex, index) == 0 ||
                  (chn_c(common, groupindex, index) <
                   chn_maxc(common, groupindex, index)))) {
@@ -913,7 +913,7 @@ static void *stream(int arg, int groupindex, int index, const void *client_addre
               index = uindex % grp_nchannels(common, groupindex);
               debug("modulo %d gives %d\n", grp_nchannels(common, groupindex), index);
 
-              if (chn_status(common, groupindex, index) == 1 &&
+              if (chn_status(common, groupindex, index) == CS_ENABLED &&
                   (chn_maxc(common, groupindex, index) == 0 ||
                    (chn_c(common, groupindex, index) <
                     chn_maxc(common, groupindex, index)))
@@ -1119,7 +1119,7 @@ static COMMON *makecommon(int argc, char **argv, int source_port)
         err_dump("too many groups");
       }
     } else {
-      chn_status(mycommon, group, channel) = 1;
+      chn_status(mycommon, group, channel) = CS_ENABLED;
       chn_c(mycommon, group, channel) = 0;      // connections...
       chn_tc(mycommon, group, channel) = 0;     // total connections...
       chn_maxc(mycommon, group, channel) = 0;   // maxconnections...
@@ -1232,7 +1232,8 @@ static void shell(const char *argument)
                      group,
                      grp_type(common, group) == GROUP_RR ? "RR" : "Hash",
                      i,
-                     chn_status(common, group, i) == 1 ? "ENA" : "dis",
+                     chn_status(common, group, i) == CS_ENABLED ? "ENA"
+                       : chn_status(common, group, i) == CS_DISABLED_SOFT ? "dis" : "DIS",
                      inet_ntoa(chn_ipaddr(common, group, i)),
                      chn_port(common, group, i),
                      chn_c(common, group, i),
@@ -1285,10 +1286,10 @@ static void shell(const char *argument)
             printf("no such channel %d\n", n);
           } else {
             c_writelock(currentgroup, n);
-            if (chn_status(common, currentgroup, n) == 0) {
+            if (chn_status(common, currentgroup, n) == CS_DISABLED) {
               printf("channel %d already disabled\n", n);
             } else {
-              chn_status(common, currentgroup, n) = 0;
+              chn_status(common, currentgroup, n) = CS_DISABLED;
               printf("channel %d disabled\n", n);
             }
             c_unlock(currentgroup, n);
@@ -1339,10 +1340,10 @@ static void shell(const char *argument)
             printf("no such channel %d\n", n);
           } else {
             c_writelock(currentgroup, n);
-            if (chn_status(common, currentgroup, n) == 1) {
+            if (chn_status(common, currentgroup, n) == CS_ENABLED) {
               printf("channel %d already enabled\n", n);
             } else {
-              chn_status(common, currentgroup, n) = 1;
+              chn_status(common, currentgroup, n) = CS_ENABLED;
               printf("channel %d enabled\n", n);
             }
             c_unlock(currentgroup, n);
@@ -1360,7 +1361,7 @@ static void shell(const char *argument)
           if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
             if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
               chn_status(common, currentgroup,
-                         grp_nchannels(common, currentgroup)) = 0;
+                         grp_nchannels(common, currentgroup)) = CS_DISABLED;
               if (setaddress_noexitonerror
                   (&chn_ipaddr
                    (common, currentgroup,
@@ -1398,7 +1399,7 @@ static void shell(const char *argument)
                printf("unknown channel\n");
         } else {
             c_writelock(currentgroup, chn);
-            if (chn_status(common, currentgroup, chn) != 0) {
+            if (chn_status(common, currentgroup, chn) != CS_DISABLED) {
                printf("channel must be disabled to assign new address\n");
             } else if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
                 if ((arg3 = strtok(NULL, " \t\n")) != NULL) {
@@ -1785,7 +1786,7 @@ int main(int argc, char *argv[])
       index = grp_current(common, groupindex);
       for (;;) {
         if (grp_type(common, groupindex) == GROUP_RR) {
-          if (chn_status(common, groupindex, index) == 1 &&
+          if (chn_status(common, groupindex, index) == CS_ENABLED &&
               (chn_maxc(common, groupindex, index) == 0 ||
                (chn_c(common, groupindex, index) <
                 chn_maxc(common, groupindex, index)))) {
@@ -1807,11 +1808,10 @@ int main(int argc, char *argv[])
 
           index = uindex % grp_nchannels(common, groupindex);
           debug("modulo %d gives %d\n", grp_nchannels(common, groupindex), index);
-          if (chn_status(common, groupindex, index) == 1
-              && (chn_maxc(common, groupindex, index) == 0
-                  || (chn_c(common, groupindex, index) <
-                      chn_maxc(common, groupindex, index)))
-              ) {
+          if (chn_status(common, groupindex, index) == CS_ENABLED &&
+              (chn_maxc(common, groupindex, index) == 0 ||
+               (chn_c(common, groupindex, index) <
+                chn_maxc(common, groupindex, index)))) {
             break;              // channel found, channel valid for HASH
           } else {
             if (hashfailover == 1) {
@@ -1828,7 +1828,7 @@ int main(int argc, char *argv[])
                   index = -1;
                   break;
                 }
-                if (chn_status(common, groupindex, index) == 1 &&
+                if (chn_status(common, groupindex, index) == CS_ENABLED &&
                     (chn_maxc(common, groupindex, index) == 0 ||
                      (chn_c(common, groupindex, index) <
                       chn_maxc(common, groupindex, index)))
