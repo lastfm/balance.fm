@@ -110,7 +110,9 @@ typedef struct {
 typedef struct {
   int   release;
   int   subrelease;
+  int   patchlevel;
   int   pid;
+  int   ngroups;
   GROUP groups[MAXGROUPS];
 } COMMON;
 

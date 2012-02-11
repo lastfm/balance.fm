@@ -666,10 +666,8 @@ static void set_socket_options(int s, const KEEPALIVE *ka)
   int optval = 1;
 
   /* failure is acceptable */
-  (void) setsockopt(s, IPPROTO_TCP, TCP_NODELAY,
-    (char *)&optval, (socklen_t)sizeof(optval));
-  (void) setsockopt(s, SOL_SOCKET, SO_KEEPALIVE,
-    (char *)&optval, (socklen_t)sizeof(optval));
+  (void) setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(optval));
+  (void) setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
 
 #if BALANCE_CAN_KEEPALIVE
   if (ka->time > 0)
@@ -1085,6 +1083,8 @@ static COMMON *makecommon(int argc, char **argv, int source_port)
   mycommon->pid = getpid();
   mycommon->release = release;
   mycommon->subrelease = subrelease;
+  mycommon->patchlevel = patchlevel;
+  mycommon->ngroups = 0;
 
   for (group = 0; group < MAXGROUPS; group++) {
     grp_nchannels(mycommon, group) = 0;
@@ -1138,6 +1138,8 @@ static COMMON *makecommon(int argc, char **argv, int source_port)
     }
   }
 
+  mycommon->ngroups = group + 1;
+
   if (debugflag && !no_std_handles) {
     fprintf(stderr, "the following channels are active:\n");
     for (group = 0; group < MAXGROUPS; group++) {
@@ -1185,9 +1187,9 @@ static void shell(const char *argument)
     exit(EX_UNAVAILABLE);
   }
 
-  if (common->release != release || common->subrelease != subrelease) {
-    printf("release mismatch, expecting %d.%d, got %d.%d, exiting.\n",
-           release, subrelease, common->release, common->subrelease);
+  if (common->release != release || common->subrelease != subrelease || common->patchlevel != patchlevel) {
+    printf("release mismatch, expecting %d.%d.%d, got %d.%d.%d, exiting.\n",
+           release, subrelease, patchlevel, common->release, common->subrelease, common->patchlevel);
     exit(EX_DATAERR);
   }
 
@@ -1197,8 +1199,7 @@ static void shell(const char *argument)
   }
 
   if (argument == NULL) {
-    printf("\nbalance %d.%d interactive command shell\n", release,
-           subrelease);
+    printf("\nbalance.fm %d.%d.%d interactive command shell\n", release, subrelease, patchlevel);
     printf("PID of master process is %d\n\n", common->pid);
   }
 
@@ -1501,7 +1502,7 @@ static void shell(const char *argument)
         b_unlock();
 
       } else if (mycmp(command, "version")) {
-        printf("  This is balance.fm %d.%d\n", release, subrelease);
+        printf("  This is balance.fm %d.%d.%d\n", release, subrelease, patchlevel);
         printf("  MAXGROUPS=%d\n", MAXGROUPS);
         printf("  MAXCHANNELS=%d\n", MAXCHANNELS);
       } else if (mycmp(command, "hash")) {
@@ -1735,7 +1736,7 @@ int main(int argc, char *argv[])
     shell(argument);
   }
 
-  openlog("Balance", LOG_ODELAY | LOG_PID | LOG_CONS, LOG_DAEMON);
+  openlog("Balance.fm", LOG_ODELAY | LOG_PID | LOG_CONS, LOG_DAEMON);
 
   /*  Open a TCP socket (an Internet stream socket). */
 
