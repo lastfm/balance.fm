@@ -60,6 +60,10 @@
 # define BALANCE_CAN_KEEPALIVE 0
 #endif
 
+#ifndef __GNUC__
+# define __attribute__(x)  /*NOTHING*/
+#endif
+
 /* solaris 9, solaris 10 do not have INADDR_NONE */
 #ifndef INADDR_NONE
 #define INADDR_NONE ((unsigned long) -1)
