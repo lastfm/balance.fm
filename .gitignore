@@ -1,2 +1,6 @@
 !Makefile
 balance.fm
+balance.fm.pdf
+balance.fm.ps
+balance.fm.dvi
+balance.fm.html

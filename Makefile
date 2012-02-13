@@ -1,4 +1,4 @@
-CFLAGS=-O0 -g -Wall -Wextra -Wstrict-prototypes -pedantic -std=gnu99
+CFLAGS=-O2 -g -Wall -Wextra -Wstrict-prototypes -pedantic -std=gnu99
 
 # uncomment for any OS other than Cygwin
 BALANCE=balance.fm
@@ -32,15 +32,21 @@ balance.o: balance.c balance.h
 butils.o: butils.c balance.h
 	$(CC) $(CFLAGS) -I. -c butils.c
 
-$(BALANCE).pdf: $(BALANCE).ps
-	ps2pdf $(BALANCE).ps $(BALANCE).pdf
+$(BALANCE).html: $(BALANCE).1
+	man2html ./$(BALANCE).1 >$(BALANCE).html
+
+$(BALANCE).dvi: $(BALANCE).1
+	man2dvi ./$(BALANCE).1 >$(BALANCE).dvi
+
+$(BALANCE).pdf: $(BALANCE).dvi
+	dvipdf $(BALANCE).dvi $(BALANCE).pdf
 
 $(BALANCE).ps: $(BALANCE).1
 	troff -Tpost -man $(BALANCE).1 | /usr/lib/lp/postscript/dpost > $(BALANCE).ps
 	# groff -f H -man $(BALANCE).1 > $(BALANCE).ps
 
 clean:
-	rm -f $(BALANCE) *.o $(BALANCE).ps $(BALANCE).pdf
+	rm -f $(BALANCE) *.o $(BALANCE).dvi $(BALANCE).html $(BALANCE).ps $(BALANCE).pdf
 
 install:
 	mkdir -p $(DESTDIR)$(BINDIR)
