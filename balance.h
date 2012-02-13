@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <strings.h>
 #include <ctype.h>
 #include <errno.h>
@@ -16,6 +17,7 @@
 #include <stdlib.h>
 #include <sysexits.h>
 #include <syslog.h>
+#include <poll.h>
 #ifndef NO_MMAP
 #include <unistd.h>
 #include <sys/mman.h>
@@ -45,6 +47,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
@@ -83,6 +86,7 @@
 #define MAXINPUTLINE            128     /* max line in input mode         */
 #define DEFAULTTIMEOUT          5       /* timeout for unreachable hosts  */
 #define DEFAULTSELTIMEOUT       0       /* timeout for select             */
+#define DEFAULT_MON_INTERVAL    60      /* 1 minute monitoring interval   */
 
 enum channel_status {
   CS_DISABLED,                  /* hard disabled (manually in shell)  */
@@ -122,6 +126,8 @@ typedef struct {
   int   subrelease;
   int   patchlevel;
   int   pid;
+  int   monitor_pid;
+  bool  monitor_enabled;
   int   ngroups;
   GROUP groups[MAXGROUPS];
 } COMMON;
@@ -149,8 +155,59 @@ typedef struct {
 #define chn_bsent(a,g,i)         (grp_channel((a),(g),(i)).bsent)
 #define chn_breceived(a,g,i)     (grp_channel((a),(g),(i)).breceived)
 
+enum monitor_action_type {
+  MA_CONNECT,                   /* performs a TCP connect to host:port */
+  MA_COMMAND                    /* run an arbitrary command and checks */
+                                /*   its exit code (0 = passed)        */
+  /* MA_PING  might be useful, but can for now be emulated using command=/bin/ping... */
+};
+
+enum monitor_status {
+  MS_UNKNOWN,                   /* no tests have been performed yet    */
+  MS_PASSED,                    /* all tests have passed so far        */
+  MS_FAILED,                    /* at least one test has failed        */
+  MS_ERROR                      /* an error occurred during a test     */
+};
+
+struct monitor_defaults {
+  float connect_timeout;
+};
+
+struct monitor_action {
+  enum monitor_action_type type;
+  struct monitor_action *next;
+  union {
+    struct {
+      float timeout;
+    } connect;
+    struct {
+      char *cmdline;
+      size_t num_pass;
+      int *pass;
+    } command;
+  } u;
+};
+
+struct monitor_spec {
+  struct monitor_action *action_list;
+  int interval;                  /* monitoring interval in seconds     */
+  bool enable;                   /* enable channels when tests pass    */
+  bool disable;                  /* disable channels when tests fail   */
+};
+
+struct monitor_info {
+  int grp;
+  int cha;
+  enum monitor_status status;
+};
+
 /*
  * function prototypes
  */
 unsigned int hash_fold(const void *, int);
 ssize_t writen(int, const unsigned char *, size_t);
+int err_dump(const char *text);
+struct monitor_spec *monitor_spec_parse(const char *str, const struct monitor_defaults *defaults);
+void monitor_spec_dump(FILE *fh, const struct monitor_spec *spec);
+void monitor_spec_free(struct monitor_spec *spec);
+char *monitor_command_format(const char *format, const char *host, int port);

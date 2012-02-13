@@ -832,7 +832,14 @@ static void quit_handler(int signo __attribute__((unused)))
 static void chld_handler(int signo __attribute__((unused)))
 {
   int status;
-  while (waitpid(-1, &status, WNOHANG) > 0);
+  int pid;
+  while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    b_writelock();
+    if (pid == common->monitor_pid) {
+      common->monitor_pid = -1;
+    }
+    b_unlock();
+  }
 }
 
 /*
@@ -1052,10 +1059,10 @@ static void usage(void)
   fprintf(stderr, "usage:\n");
   fprintf(stderr, "  balance.fm [-b addr] [-B addr] [-t sec] [-T sec]");
 #if BALANCE_CAN_KEEPALIVE
-  fprintf(stderr,                                                " [-k t,i,p] [-K t,i,p]");
+  fprintf(stderr,                                                   " [-k t,i,p] [-K t,i,p]");
 #endif
-  fprintf(stderr,                                                                      " [-adfpHM] \\\n");
-  fprintf(stderr, "          port [h1[:p1[:maxc1]] [!%%] [ ... hN[:pN[:maxcN]]]]\n");
+  fprintf(stderr,                                                                         " [-m spec] [-adfpHM] \\\n");
+  fprintf(stderr, "             port [h1[:p1[:maxc1]] [!%%] [ ... hN[:pN[:maxcN]]]]\n");
   fprintf(stderr, "  balance.fm [-b addr] -i [-d] port\n");
   fprintf(stderr, "  balance.fm [-b addr] -c cmd  [-d] port\n");
   fprintf(stderr, "\n");
@@ -1071,12 +1078,19 @@ static void usage(void)
   fprintf(stderr, "  -K t,i,p  use server TCP keepalive (time, interval, # of probes)\n");
 #endif
   fprintf(stderr, "  -H        failover even if Hash Type is used\n");
+  fprintf(stderr, "  -m spec   enable channel monitoring\n");
   fprintf(stderr, "  -M        use MMAP instead of SHM for IPC\n");
   fprintf(stderr, "  -p        packetdump\n");
   fprintf(stderr, "  -t sec    specify connect timeout in seconds (default=%d)\n", DEFAULTTIMEOUT);
   fprintf(stderr, "  -T sec    timeout (seconds) for select (0 => never) (default=%d)\n", DEFAULTSELTIMEOUT);
   fprintf(stderr, "   !        separates channelgroups (declaring previous to be Round Robin)\n");
   fprintf(stderr, "   %%        as !, but declaring previous group to be a Hash Type\n");
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "monitoring spec examples:\n");
+  fprintf(stderr, "  connect:interval=5:nodisable\n");
+  fprintf(stderr, "  command=\"/bin/ping -c1 -w1 %%S >/dev/null\":pass=0,1:noenable\n");
+  fprintf(stderr, "  connect:timeout=0.5:command=\"/bin/checksvc -s %%S -p %%P\":interval=30\n");
 
   fprintf(stderr, "\n");
   fprintf(stderr, "examples:\n");
@@ -1148,6 +1162,8 @@ static COMMON *makecommon(int argc, char **argv, int source_port, int *p_shmid)
   mycommon->release = release;
   mycommon->subrelease = subrelease;
   mycommon->patchlevel = patchlevel;
+  mycommon->monitor_pid = -1;
+  mycommon->monitor_enabled = true;
   mycommon->ngroups = 0;
 
   for (group = 0; group < MAXGROUPS; group++) {
@@ -1318,6 +1334,7 @@ static void shell(const char *argument)
         printf("  disable <channel>              disables specified channel in current group\n");
         printf("  enable <channel>               enables channel in current group\n");
         printf("  group <group>                  changes current group to <group>\n");
+        printf("  monitor [enable|disable|show]  control the monitor process\n");
         printf("  hash                           sets distribution scheme of current group to Hash\n");
         printf("  help                           prints this message\n");
         printf("  kill                           kills master process and quits interactive mode\n");
@@ -1340,6 +1357,52 @@ static void shell(const char *argument)
         } else {
           printf("shutdown failed.\n");
           exit(EX_UNAVAILABLE);
+        }
+      } else if (mycmp(command, "monitor")) {
+        char *arg;
+        if ((arg = strtok(NULL, " \t\n")) != NULL) {
+          b_readlock();
+          int pid = common->monitor_pid;
+          bool enabled = common->monitor_enabled;
+          b_unlock();
+          if (mycmp(arg, "enable")) {
+            if (pid != -1) {
+              if (enabled) {
+                printf("monitor is already enabled\n");
+              } else {
+                b_writelock();
+                common->monitor_enabled = true;
+                b_unlock();
+                printf("monitor is now enabled\n");
+              }
+            } else {
+              printf("no monitor process running\n");
+            }
+          } else if (mycmp(arg, "disable")) {
+            if (pid != -1) {
+              if (enabled) {
+                b_writelock();
+                common->monitor_enabled = false;
+                b_unlock();
+                printf("monitor is now disabled\n");
+              } else {
+                printf("monitor is already disabled\n");
+              }
+            } else {
+              printf("no monitor process running\n");
+            }
+          } else if (mycmp(arg, "show")) {
+            if (pid != -1) {
+              printf("monitor process running as pid %d and is %sabled\n",
+                     pid, enabled ? "en" : "dis");
+            } else {
+              printf("no monitor process running\n");
+            }
+          } else {
+            printf("syntax error\n");
+          }
+        } else {
+          printf("syntax error\n");
         }
       } else if (mycmp(command, "disable")) {
         char *arg;
@@ -1592,6 +1655,393 @@ static void shell(const char *argument)
   }
 }
 
+static void monitor_connect(struct monitor_info *minfo, size_t num, const struct monitor_action *ma)
+{
+  struct pollfd *pollinfo = malloc(num*sizeof(struct pollfd));
+
+  if (pollinfo == NULL) {
+    for (size_t i = 0; i < num; i++) {
+      struct monitor_info *mi = &minfo[i];
+      if (mi->status != MS_FAILED && mi->status != MS_ERROR) {
+        mi->status = MS_ERROR;
+      }
+    }
+    return;
+  }
+
+  size_t pending = 0;
+
+  for (size_t i = 0; i < num; i++) {
+    struct monitor_info *mi = &minfo[i];
+    struct pollfd *pi = &pollinfo[i];
+
+    pi->events = 0;
+    pi->revents = 0;
+
+    if (mi->status == MS_FAILED || mi->status == MS_ERROR) {
+      pi->fd = -1;
+      continue;
+    }
+
+    pi->fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (pi->fd < 0) {
+      log_perror(LOG_ERR, "socket");
+      mi->status = MS_ERROR;
+      continue;
+    }
+
+    int flags = fcntl(pi->fd, F_GETFL, 0);
+    if (flags == -1) {
+      log_perror(LOG_ERR, "fcntl");
+      mi->status = MS_ERROR;
+      close(pi->fd);
+      pi->fd = -1;
+      continue;
+    }
+    if (fcntl(pi->fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+      log_perror(LOG_ERR, "fcntl");
+      mi->status = MS_ERROR;
+      close(pi->fd);
+      pi->fd = -1;
+      continue;
+    }
+
+    struct sockaddr_in serv_addr;
+    bzero(&serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    c_readlock(mi->grp, mi->cha);
+    serv_addr.sin_addr.s_addr = chn_ipaddr(common, mi->grp, mi->cha).s_addr;
+    serv_addr.sin_port = htons(chn_port(common, mi->grp, mi->cha));
+    c_unlock(mi->grp, mi->cha);
+
+    if (connect(pi->fd, (const struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+      if (errno == EINPROGRESS) {
+        pi->events = POLLOUT | POLLERR;
+        pending++;
+      } else {
+        debug("connection refused group %d channel %d\n", mi->grp, mi->cha);
+        mi->status = MS_FAILED;
+        close(pi->fd);
+        pi->fd = -1;
+      }
+    } else {
+      mi->status = MS_PASSED;
+      close(pi->fd);
+      pi->fd = -1;
+    }
+  }
+
+  if (pending > 0) {
+    struct timeval end;
+
+    if (gettimeofday(&end, NULL) != 0) {
+      log_perror(LOG_ERR, "gettimeofday");
+      exit(EX_OSERR);  /* if this really happens, we're screwed anyway */
+    }
+
+    end.tv_usec += (suseconds_t) (1e6f*ma->u.connect.timeout);
+    end.tv_sec += end.tv_usec/1000000;
+    end.tv_usec %= 1000000;
+
+    while (pending > 0) {
+      struct timeval now;
+
+      if (gettimeofday(&now, NULL) != 0) {
+        log_perror(LOG_ERR, "gettimeofday");
+        exit(EX_OSERR);  /* if this really happens, we're screwed anyway */
+      }
+
+      int remain = 1000*(end.tv_sec - now.tv_sec) + (end.tv_usec - now.tv_usec)/1000;
+
+      if (remain <= 0) {
+        break;
+      }
+
+      int pollnum = poll(pollinfo, num, remain);
+      if (pollnum < 0) {
+        break;
+      }
+
+      for (size_t i = 0; i < num && pollnum > 0; i++) {
+        struct monitor_info *mi = &minfo[i];
+        struct pollfd *pi = &pollinfo[i];
+
+        if (pi->events != 0 && pi->revents != 0) {
+          if (pi->revents & POLLERR) {
+            mi->status = MS_FAILED;
+          } else if (pi->revents & POLLOUT) {
+            mi->status = MS_PASSED;
+          } else {
+            mi->status = MS_ERROR;
+          }
+
+          close(pi->fd);
+          pi->fd = -1;
+          pi->events = 0;
+          pi->revents = 0;
+
+          pollnum--;
+          pending--;
+        }
+      }
+    }
+
+    if (pending > 0) {
+      for (size_t i = 0; i < num; i++) {
+        struct monitor_info *mi = &minfo[i];
+        struct pollfd *pi = &pollinfo[i];
+
+        if (pi->fd >= 0) {
+          mi->status = MS_FAILED;
+          close(pi->fd);
+        }
+      }
+    }
+  }
+
+  free(pollinfo);
+}
+
+static void monitor_command(struct monitor_info *minfo, size_t num, const struct monitor_action *ma)
+{
+  for (size_t i = 0; i < num && !interrupted; i++) {
+    struct monitor_info *mi = &minfo[i];
+
+    if (mi->status == MS_FAILED || mi->status == MS_ERROR) {
+      continue;
+    }
+
+    c_readlock(mi->grp, mi->cha);
+    char addrbuf[32];
+    const char *host = inet_ntop(AF_INET, &chn_ipaddr(common, mi->grp, mi->cha), addrbuf, sizeof(addrbuf));
+    int port = chn_port(common, mi->grp, mi->cha);
+    c_unlock(mi->grp, mi->cha);
+
+    if (host == NULL) {
+      mi->status = MS_ERROR;
+      continue;
+    }
+
+    char *command = monitor_command_format(ma->u.command.cmdline, host, port);
+    int rv = system(command);
+    free(command);
+
+    if (WIFSIGNALED(rv) && (WTERMSIG(rv) == SIGINT || WTERMSIG(rv) == SIGQUIT || WTERMSIG(rv) == SIGTERM)) {
+      interrupted = 1;
+      break;
+    }
+
+    if (WIFEXITED(rv)) {
+      mi->status = MS_FAILED;
+      for (size_t i = 0; i < ma->u.command.num_pass; i++) {
+        if (WEXITSTATUS(rv) == ma->u.command.pass[i]) {
+          mi->status = MS_PASSED;
+          break;
+        }
+      }
+    } else {
+      mi->status = MS_ERROR;
+    }
+  }
+}
+
+static void monitor_run(const struct monitor_spec *ms)
+{
+  size_t channels = 0;
+  struct monitor_info *moninfo = NULL;
+
+  b_readlock();
+  for (int grp = 0; grp < common->ngroups; grp++) {
+    channels += grp_nchannels(common, grp);
+  }
+  if (channels > 0) {
+    moninfo = malloc(channels*sizeof(struct monitor_info));
+    if (moninfo) {
+      channels = 0;
+      for (int grp = 0; grp < common->ngroups; grp++) {
+        for (int cha = 0; cha < grp_nchannels(common, grp); cha++) {
+          if ((chn_status(common, grp, cha) == CS_DISABLED_SOFT && ms->enable) ||
+              (chn_status(common, grp, cha) == CS_ENABLED && ms->disable)) {
+            struct monitor_info *mi = &moninfo[channels++];
+            mi->grp = grp;
+            mi->cha = cha;
+            mi->status = MS_UNKNOWN;
+          }
+        }
+      }
+    }
+  }
+  b_unlock();
+
+  if (moninfo) {
+    for (struct monitor_action *ma = ms->action_list; ma && !interrupted; ma = ma->next) {
+      switch (ma->type) {
+        case MA_CONNECT:
+          monitor_connect(moninfo, channels, ma);
+          break;
+        case MA_COMMAND:
+          monitor_command(moninfo, channels, ma);
+          break;
+        default:
+          abort(); /* we should never ever get here */
+          break;
+      }
+    }
+
+    if (!interrupted) {
+      b_writelock();
+      for (size_t i = 0; i < channels; i++) {
+        const struct monitor_info *mi = &moninfo[i];
+        if (mi->status == MS_PASSED) {
+          if (chn_status(common, mi->grp, mi->cha) == CS_DISABLED_SOFT && ms->enable) {
+            debug("group %d channel %d -> enabled\n", mi->grp, mi->cha);
+            chn_status(common, mi->grp, mi->cha) = CS_ENABLED;
+          }
+        } else if (mi->status == MS_FAILED) {
+          if (chn_status(common, mi->grp, mi->cha) == CS_ENABLED && ms->disable) {
+            debug("group %d channel %d -> disabled\n", mi->grp, mi->cha);
+            chn_status(common, mi->grp, mi->cha) = CS_DISABLED_SOFT;
+          }
+        }
+      }
+      b_unlock();
+    }
+
+    free(moninfo);
+  }
+}
+
+static void monitor_loop(const struct monitor_spec *ms)
+{
+  struct timeval next;
+
+  if (gettimeofday(&next, NULL) != 0) {
+    log_perror(LOG_ERR, "gettimeofday");
+    exit(EX_OSERR);
+  }
+
+  while (!interrupted) {
+    struct timeval now;
+
+    if (gettimeofday(&now, NULL) != 0) {
+      log_perror(LOG_ERR, "gettimeofday");
+      exit(EX_OSERR);
+    }
+
+    if (now.tv_sec > next.tv_sec || (now.tv_sec == next.tv_sec && now.tv_usec >= next.tv_usec)) {
+      b_readlock();
+      bool enabled = common->monitor_enabled;
+      b_unlock();
+
+      if (enabled) {
+        monitor_run(ms);
+      }
+
+      if (gettimeofday(&now, NULL) != 0) {
+        log_perror(LOG_ERR, "gettimeofday");
+        exit(EX_OSERR);
+      }
+
+      do {
+        next.tv_sec += ms->interval;
+      } while (now.tv_sec > next.tv_sec || (now.tv_sec == next.tv_sec && now.tv_usec >= next.tv_usec));
+    }
+
+    struct timeval wait;
+
+    if (now.tv_usec > next.tv_usec) {
+      wait.tv_usec = (next.tv_usec + 1000000) - now.tv_usec;
+      wait.tv_sec = (next.tv_sec - 1) - now.tv_sec;
+    } else {
+      wait.tv_usec = next.tv_usec - now.tv_usec;
+      wait.tv_sec = next.tv_sec - now.tv_sec;
+    }
+
+    if (!interrupted) {
+      select(0, NULL, NULL, NULL, &wait);
+    }
+  }
+}
+
+static struct monitor_spec *monitor_prepare(const char *spec)
+{
+  if (spec == NULL) {
+    return NULL;
+  }
+
+  struct monitor_defaults defaults;
+
+  defaults.connect_timeout = (float) connect_timeout;
+
+  struct monitor_spec *ms = monitor_spec_parse(spec, &defaults);
+
+  if (debugflag) {
+    monitor_spec_dump(stderr, ms);
+  }
+
+  return ms;
+}
+
+static void monitor_start(struct monitor_spec *ms)
+{
+  if (ms) {
+    int childpid;
+    if ((childpid = fork()) < 0) {
+      log_perror(LOG_INFO, "fork");
+    } else if (childpid == 0) {
+      monitor_loop(ms);
+      monitor_spec_free(ms);
+      exit(EX_OK);
+    }
+
+    monitor_spec_free(ms);
+
+    b_writelock();
+    common->monitor_pid = childpid;
+    b_unlock();
+  }
+}
+
+static void monitor_kill(void)
+{
+  b_readlock();
+  int pid = common->monitor_pid;
+  b_unlock();
+
+  if (pid != -1) {
+    debug("stopping monitor process\n");
+
+    if (kill(pid, 0) == 0) {
+      sigset_t block_mask, orig_mask;
+      sigemptyset(&block_mask);
+      sigaddset(&block_mask, SIGCHLD);
+
+      if (sigprocmask(SIG_BLOCK, &block_mask, &orig_mask) < 0) {
+        log_perror(LOG_ERR, "sigprocmask");
+        return;
+      }
+
+      if (kill(pid, SIGTERM) == 0) {
+        struct timespec wait;
+        wait.tv_nsec = 0;
+        wait.tv_sec = 1;
+        for (;;) {
+          b_readlock();
+          pid = common->monitor_pid;
+          b_unlock();
+          if (pid == -1) {
+            break;
+          }
+          pselect(0, NULL, NULL, NULL, &wait, &orig_mask);
+        }
+      } else {
+        log_perror(LOG_ERR, "kill");
+      }
+    }
+  }
+}
+
 char bindhost_address[FILENAMELEN];
 
 int main(int argc, char *argv[])
@@ -1606,13 +2056,14 @@ int main(int argc, char *argv[])
   struct stat buffer;
   struct sockaddr_storage cli_addr;
   struct sigaction chld_action, quit_action;
+  const char *monitor = NULL;
 #ifndef BalanceBSD
   struct rlimit r;
 #endif
 
   connect_timeout = DEFAULTTIMEOUT;
 
-  while ((c = getopt(argc, argv, "c:b:B:t:T:k:K:adfpiHM6")) != EOF) {
+  while ((c = getopt(argc, argv, "c:b:B:t:T:k:K:m:adfpiHM6")) != EOF) {
     switch (c) {
     case '6':
       bindipv6 = 1;
@@ -1665,6 +2116,9 @@ int main(int argc, char *argv[])
       usage();
 #endif
       break;
+    case 'm':
+      monitor = optarg;
+      break;
     case 'f':
       foreground = 1;
       break;
@@ -1694,6 +2148,8 @@ int main(int argc, char *argv[])
       usage();
     }
   }
+
+  struct monitor_spec *mon_spec = monitor_prepare(monitor);
 
   debug("argv[0]=%s\n", argv[0]);
   debug("bindhost=%s\n", bindhost == NULL ? "NULL" : bindhost);
@@ -1822,6 +2278,10 @@ int main(int argc, char *argv[])
   }
 
   common = makecommon(argc, argv, source_port, &shmid);
+
+  // fork off monitoring process
+
+  monitor_start(mon_spec);
 
   sigset_t block_mask, orig_mask;
   sigemptyset(&block_mask);
@@ -1987,6 +2447,8 @@ int main(int argc, char *argv[])
 
     close(newsockfd);           // parent process
   }
+
+  monitor_kill();
 
   shm_destroy(shmid);
 
