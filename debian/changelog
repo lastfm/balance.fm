@@ -1,5 +1,13 @@
 balance.fm (1.0.0) unstable; urgency=low
 
   * Initial release, based on balance 3.54
+  * Add TCP keepalive configuration support
+  * Fix and refactor logging/reporting code
+  * Fix some off-by-one errors
+  * Fix some inconsistent exit codes
+  * Improve signal handling and shared memory handling
+  * Improve shutdown behaviour
+  * Added monitoring support
+  * Documentation overhaul
 
- -- Marcus Holland-Moritz <marcus@last.fm>  Tue, 07 Feb 2012 16:58:11 +0000
+ -- Marcus Holland-Moritz <marcus@last.fm>  Mon, 13 Feb 2012 15:53:02 +0000
