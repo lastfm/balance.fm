@@ -1,85 +1,114 @@
-.TH BALANCE 1 "03 Dec 2010"
+.TH balance.fm "1" "2012-02-13" "balance.fm 1.0.0"
 .SH NAME
-balance 3.54 \- A simple TCP proxy with load balancing and failover mechanisms.
+balance.fm \- Simple TCP proxy with load balancing, failover and monitoring mechanisms
 .SH SYNOPSIS
-.B balance
-[
-.B -b addr
-]
-[
-.B -B addr
-]
-[
-.B -t sec
-]
-[
-.B -T sec
-]
-[
-.B -k t,i,p
-]
-[
-.B -K t,i,p
-]
-[
-.B -adfpHM6
-] port host1[:port1[:maxc]] [!|%] [ ... hostn[:portn[:maxc]]]
+.na
+.TP
+.B balance.fm
+.RB "[\|" "\-b "\c
+.I addr\c
+\&\|]
+.RB "[\|" "\-B "\c
+.I addr\c
+\&\|]
+.RB "[\|" "\-m "\c
+.I spec\c
+\&\|]
+.RB "[\|" "\-t "\c
+.I sec\c
+\&\|]
+.RB "[\|" "\-T "\c
+.I sec\c
+\&\|]
+.RB "[\|" "\-k "\c
+.I t,i,p\c
+\&\|]
+.RB "[\|" "\-K "\c
+.I t,i,p\c
+\&\|]
+.RB "[\|" \-adfpHM6 "\|]"
+.I port
+.I host1\c
+[:\c
+.I port1\c
+[:\c
+.I maxc\c
+]] [!|%] [ ... \c
+.I hostn\c
+[:\c
+.I portn\c
+[:\c
+.I maxc\c
+]]]
 .PP
-.B balance
-[
-.B -b addr
-]
-.B -i
-[
-.B -d
-] [
-.B -M
-] port
+.B balance.fm
+.RB "[\|" "\-b "\c
+.I addr\c
+\&\|]
+.B \-i
+.RB "[\|" \-d "\|]"
+.RB "[\|" \-M "\|]"
+.I port
 .PP
-.B balance
-[
-.B -b addr
-]
-.B -c cmd
-[
-.B -d
-]
-[
-.B -M
-] port
+.B balance.fm
+.RB "[\|" "\-b "\c
+.I addr\c
+\&\|]
+.B -c \c
+.I cmd
+.RB "[\|" \-d "\|]"
+.RB "[\|" \-M "\|]"
+.I port
 .SH DESCRIPTION
-.I Balance
+.I balance.fm
 is a simple, generic "userland" TCP proxy, which allows simple
-round-robin load balancing and graceful failover between
-several destination servers.
+round-robin load balancing, graceful failover between and monitoring
+of several destination servers.
 .PP
-.I Balance
-supports IPv6 on the listening side which makes it a very useful tool for IPv6 migration
-of IPv4 only services and servers.
+.I balance.fm
+supports IPv6 on the listening side which makes it a very useful tool
+for IPv6 migration of IPv4 only services and servers.
 .PP
-.I Balance
+.I balance.fm
 is available at http://balance.sourceforge.net.
 .PP
 .I Definitions:
-A possible destination consisting of a host address and a port is called a "channel".
-A channel is member of a "channel group". Channels are numbered in a group
-starting with 0.  Groups are numbered starting with 0, which is the
-initial default group.
+A possible destination consisting of a host address and a port is
+called a \fBchannel\fR.
+A channel is member of a \fBchannel group\fR. Channels are numbered
+in a group starting with 0.  Groups are numbered starting with 0,
+which is the initial default group.
 .PP
-.I Balance
+Channels can be in one of the following states:
+.TP
+.B enabled
+The channel is available for load balancing and all monitoring checks
+are currently passing.
+.TP
+.B soft-disabled
+The channel has been disabled either by the autodisable option or by
+a failing monitoring check. It can, however, be automatically re-enabled
+if monitoring is configured to do so and checks start to pass again.
+.TP
+.B hard-disabled
+The channel has been disabled manually through the interactive shell.
+Hard-disabled channels are not considered for re-enabling by monitoring
+and must be re-enabled manually.
+.PP
+.I balance.fm
 accepts connections on the given port and forwards them to the supplied channels.
 At least one channel (in the default group) must be specified.
 If there are two or more channels specified in a group
-.I balance
+.I balance.fm
 performs a simple round-robin load balancing between the channels.
 .PP
-.I Balance
+.I balance.fm
 allows the definition of further channel groups. The connection scheme works as
 follows:
-.I balance
+.I balance.fm
 tries first to establish a connection to a channel in the first group (0), performing
 the standard round-robin load balancing scheme. If no channel in this group is available,
-.I balance
+.I balance.fm
 proceeds with the next higher channel group. Groups are simply
 separated with a "!" at the command line at startup and can be controlled
 interactively with the "group" command.
@@ -93,10 +122,10 @@ Hosts may be specified either by hostname or by IP address. Ports may
 be specified either by name (as listed in /etc/services) or numerically.
 If no port is specified in a destination, the destination port
 defaults to the source port that
-.I balance
+.I balance.fm
 controls.
 .PP
-.I Balance
+.I balance.fm
 allows the specification of the maximum number of connections per channel. This
 parameter can be optionally added after the port specification separated by a
 colon (":"). If a maximum number of connections is specified a channel will
@@ -105,208 +134,365 @@ denotes an unlimited number of connections. This is the initial default value
 of a channel.
 .PP
 The maximum number of groups and channels
-.I balance
+.I balance.fm
 can handle is specified at compile time and is initially 16 channels in 16 groups.
 .PP
 Failover to another destination (a "channel") occurs if the connection is
 refused on the current channel or if the connect timeout is reached trying
 to establish a connection. If all possible destinations (channels) currently fail,
-the client connection to balance is closed.
+the client connection to
+.I balance.fm
+is closed.
 .PP
-.I Balance
+.I balance.fm
 accepts the following options:
 .TP
-.B 6
+.B \-6
 Forces to bind on IPv6 socket by setting hints.ai_family to AF_INET6.
 .TP
-.B a
-Enable autodisable option: A channel needs to be manually re-enabled after
-a failure.
+.B \-a
+Enable autodisable option: soft-disable a channel if a connect fails
+during normal load-balancing. This is independent from monitoring.
 .TP
-.B b
+.B \-b \fIaddr
 Bindhost:
-.I Balance
+.I balance.fm
 binds to the specified host (or address) for listen() instead to INADDR_ANY.
 .TP
-.B B
+.B \-B \fIaddr
 Bindhost:
-.I Balance
+.I balance.fm
 binds to the specified host (or address) for outgoing connections (the
 connection will be initiated from this address).
 .TP
-.B c
+.B \-c \fIcmd
 Command:
-allows to send a command to the balance master process (see interactive mode)
+allows to send a command to the
+.I balance.fm
+master process (see
+.sm
+.B "INTERACTIVE CONTROL"
+below).
 .TP
-.B d
+.B \-d
 Debug:
-.I Balance
+.I balance.fm
 outputs debugging and tracing information messages on stderr.
 .TP
-.B H
+.B \-H
 Hashfailover:
-.I Balance
+.I balance.fm
 does failover to next node even if hash is used.
 .TP
-.B F
+.B \-f
 Foreground:
 tells
-.I balance
+.I balance.fm
 to stay in foreground. This might be useful for
 testing and debugging since
-.I balance
+.I balance.fm
 can be stopped in that mode using ^C (or other interrupt character).
 .TP
-.B M
+.B \-m \fIspec
+Monitoring specification: see
+.sm
+.B MONITORING
+below.
+.TP
+.B \-M
 Use memory mapping for IPC instead of shared memory
 .TP
-.B i
-Interactive Control:
-.I Balance
-connects to the running instance defined by local port and bind address via
-shared memory and allows to control the behaviour of it using a
-command line interface. The access permission using this interface are
-determined by the access restrictions of the shared memory segment in effect.
-.I help or "?"
-prints out a short command overview,
-.I assign
-allows to change the host_port assignment of a channel (only if disabled),
-.I create
-allows to establish a new destination definition (channel) consisting of
-host and port in the current group,
-.I disable
-disables a channel in the current group,
-.I enable
-enables a channel again in the current group,
-.I group
-changes the current group in interactive mode where all following commands
-are targeted,
-.I hash
-changes the current group to be of type "Hash",
-.I help
-prints out online help informations,
-.I kill
-shuts down the master process and exits interactive mode,
-.I maxc <channel> <maxc>
-sets the maximum number of connection ot the channel (0 means infinite),
-.I mrtg-bytes <group> <channel>
-prints out the bytes received/sent in MRTG compatible format (intended to be called
-with -c automatically by MRTG),
-.I mrtg-conns <group> <channel>
-prints out the total connections in MRTG compatible format (intended to be called
-with -c automatically by MRTG),
-.I quit
-exits the interactive mode,
-.I reset
-resets the byte counters of a channel,
-.I rr
-changes the current group to be of type "Round Robin",
-.I show
-shows an overview and the status of all channels including the incoming and
-outgoing transfer volume in bytes. The output is sorted by groups. Additionally
-the current connections (c) and the maximum allowed connections (maxc) are printed,
-.I version
-prints out the version and MAXGROUPS and MAXCHANNELS constants at compile time.
+.B \-i
+Interactive Control: see
+.sm
+.B "INTERACTIVE CONTROL"
+below.
 .TP
-.B p
+.B \-p
 Packetdump:
-.I Balance
+.I balance.fm
 shows all incoming and outgoing data on stdout using a
 simple always readable external representation of data.
 This might be useful for debugging and protocol analysis.
 .TP
-.B t
+.B \-t \fIsec
 Connect Timeout:
 the default timeout trying to establish a connection to any destination
 can be changed using this option. The default timeout after which a
 destination is regarded to be currently inaccessible is 5 seconds.
 .TP
-.B T
+.B \-T \fIsec
 Select Timeout:
 Timeout for select(), default = 0 (never). This feature is currently
 untested.
 .TP
-.B k|K
+.BR \-k "/" "\-K " \fIt\fR,\fIi\fR,\fIp
 Client/Server TCP Keepalive:
 Configure idle time (seconds), interval (seconds) and number of probes
 for TCP keepalive.
 .PP
+.SH "INTERACTIVE CONTROL"
+.I balance.fm
+connects to the running instance defined by local port and bind address via
+shared memory and allows to control the behaviour of it using a
+command line interface. The access permission using this interface are
+determined by the access restrictions of the shared memory segment in effect.
+.TP
+.BR help " or " "?"
+prints out a short command overview.
+.TP
+.B assign \fIchannel\fR \fIhost\fR \fIport
+allows to change the host_port assignment of a channel (only if hard-disabled).
+.TP
+.B create \fIhost\fR \fIport
+allows to establish a new destination definition (channel) consisting of
+host and port in the current group.
+.TP
+.B disable \fIchannel
+hard-disables a channel in the current group.
+.TP
+.B enable \fIchannel
+enables a channel again in the current group.
+.TP
+.B group \fIgroup
+changes the current group in interactive mode where all following commands
+are targeted.
+.TP
+.B hash
+changes the current group to be of type "Hash".
+.TP
+.B help
+prints out online help informations.
+.TP
+.B kill
+shuts down the master process and exits interactive mode.
+.TP
+.B maxc \fIchannel\fR \fImaxc
+sets the maximum number of connection ot the channel (0 means infinite).
+.TP
+.B monitor \fR[\|\fBenable\fR|\fBdisable\fR|\fBshow\fR\|]
+if a monitor process is running, enable or disable monitoring or show the current
+monitoring state.
+.TP
+.B mrtg-bytes \fIgroup\fR \fIchannel
+prints out the bytes received/sent in MRTG compatible format (intended to be called
+with -c automatically by MRTG).
+.TP
+.B mrtg-conns \fIgroup\fR \fIchannel
+prints out the total connections in MRTG compatible format (intended to be called
+with -c automatically by MRTG).
+.TP
+.B quit
+exits the interactive mode.
+.TP
+.B reset \fIchannel
+resets the byte counters of a channel.
+.TP
+.B rr
+changes the current group to be of type "Round Robin".
+.TP
+.B show
+shows an overview and the status of all channels including the incoming and
+outgoing transfer volume in bytes. The output is sorted by groups. Additionally
+the current connections (c) and the maximum allowed connections (maxc) are printed.
+.TP
+.B version
+prints out the version and MAXGROUPS and MAXCHANNELS constants at compile time.
+.SH MONITORING
+.I balance.fm
+provides optional channel monitoring support. This can be used to disable
+degraded channels as well as to re-enable channels when they are working
+again. The advantage over using the autodisable functionality, apart from
+the fact that channels can be re-enabled, is that monitoring works in the
+background and can detect a degraded channel before the master process
+attempts to connect (and potentially fail). Furthermore, instead of a
+simple connection test, monitoring optionally allows you to run a custom
+binary or script to check the status of a channel and then use its exit
+codes to enable or disable a channel.
+.PP
+The basic syntax for configuring monitoring is actually quite simple, but
+it does have a couple of constraints:
+.PP
+.RS
+.nf
+\fIspec\fR   := \fIkvpair\fR
+        | \fIspec\fR \fB":"\fR \fIkvpair
+\fIkvpair\fR := \fIkey\fR
+        | \fIkey\fR \fB"="\fR \fIvalue
+.fi
+.RE
+.PP
+There are two different types of \fIkvpair\fRs:
+.TP
+.B Actions
+define monitoring actions, e.g. attempting to connect to a host.
+.TP
+.B Options
+can be used to configure monitoring properties. There are global
+options and action specific options. Action specific options need
+to appear after the action they shall refer to. Global options can
+appear anywhere in the specification.
+.PP
+The following actions and their respective options are defined:
+.TP
+.B connect
+Attempt to connect to the channel. This is the most basic monitoring
+check and should usually performed simply because it is executed for
+all channels in parallel. Due to the short-circuiting nature of a
+chain of monitoring commands, channels that fail the connect check
+will not cause any other checks to run for that channel. This action
+supports the following options:
+.RS
+.TP
+.BR timeout = \fIfloat
+The connect timeout in seconds as a floating point constant.
+This defaults to the connect timeout given using \fB-t\fR.
+.RE
+.PP
+.TP
+.BR command = \fIstring
+This is the most flexible monitoring check as you are basically
+free to implement whatever check you like as an external script
+or binary program. You should be able to use most existing
+programs as well, as long as they signal pass or fail for the
+check through their exit code. If the command line string for
+the program requires the use of colons (which are normally used
+to separate \fIkvpair\fRs) you can escape them with a backslash
+character. Within the command line string, you can use the
+following placeholder values:
+.RS
+.TP
+.B %H
+The IP address of the channel.
+.TP
+.B %P
+The port number of the channel.
+.TP
+.B %%
+A literal percent sign.
+.PP
+.RE
+Furthermore, the the following options are supported:
+.RS
+.TP
+.BR pass = \fIexitcode\fR,\fIexitcode\fR,...
+A list of exit codes that shall be treated as a passing check.
+The default is to only pass when the exit code is 0.
+.RE
+.PP
+The following global options are defined:
+.TP
+.BR interval = \fIfloat
+The interval in seconds at which the checks shall be performed.
+If an interval is prolonged because the checks take longer than
+the interval, the next interval will be skipped. The default
+interval is one minute.
+.TP
+.BR noenable
+Passing checks will not re-enable a soft-disabled channel.
+.TP
+.BR nodisable
+Failing checks will not soft-disable an enabled channel.
+.PP
 .SH EXAMPLES
 .PP
 .TP
-.B $ balance smtp host1.test.net host2.test.net
+.B $ balance.fm smtp host1.test.net host2.test.net
 Connection to the local SMTP port will be forwarded alterating to
 the SMTP port on host1 and host2.
-.I Balance
+.I balance.fm
 runs automatically in background.
 .PP
 .TP
-.B $ balance -b 2001:DB8::1 80 10.1.1.1 10.1.1.2
-.I Balance
+.B $ balance.fm -b 2001:DB8::1 80 10.1.1.1 10.1.1.2
+.I balance.fm
 binds on port 80 of the local IPv6 IP address 2001:DB8::1 and distributes connections
 to the IPv4 addresses 10.1.1.1 and 10.1.1.2.
 .PP
 .TP
-.B $ balance -b ::ffff:10.1.1.3 80 10.1.1.1 10.1.1.2
-.I Balance
+.B $ balance.fm -b ::ffff:10.1.1.3 80 10.1.1.1 10.1.1.2
+.I balance.fm
 binds on port 80 of the local IPv4 IP address 10.1.1.3 (provided in IPv6 notation)
 and distributes connections to the IPv4 addresses 10.1.1.1 and 10.1.1.2.
 .PP
 .TP
-.B $ balance -fp imap mailserver
+.B $ balance.fm -fp imap mailserver
 Connections to the local IMAP port will always be forwarded to the
 host "mailserver".
-.I Balance
+.I balance.fm
 stays in foreground and all data is printed in readable format on
 stdout.
 .PP
 .TP
-.B $ balance -f 8888 host1 10.1.1.1:8000
+.B $ balance.fm -f 8888 host1 10.1.1.1:8000
 Connections to the local port 8888 are forwarded alternating to host1, port
 8888 and the host 10.1.1.1, port 8000.
-.I Balance
+.I balance.fm
 stays in foreground connected to the "controlling tty".
 .PP
 .TP
-.B $ balance imap mailserver1::16 ! mailserver2
+.B $ balance.fm imap mailserver1::16 ! mailserver2
 Two groups are specified, each containing one channel member. First up to 16
 simultaneous connections are forwarded to "mailserver1". As soon as they are
 consumed,
-.I balance
+.I balance.fm
 proceeds with the next group (1) which will consume all remaining connections
 forwarding them to the imap ort on "mailserver2".
 .PP
 .TP
-.B $ balance pop3 host1 host2 host3 ! failover1
-.I Balance
+.B $ balance.fm pop3 host1 host2 host3 ! failover1
+.I balance.fm
 does round robin load balancing for the three hosts in the default group 0
 for pop3 services. If all three hosts in group 0 fail, all
 connections are then forwarded to the host "failover1".
 .PP
 .TP
-.B $ balance telnet target.munich.net::1
+.B $ balance.fm telnet target.munich.net::1
 Here
-.I balance
+.I balance.fm
 is used to restrict all connections to exactly one at a time forwarding the telnet port.
 .PP
 .TP
-.B $ balance 8888 localhost::12 ! localhost::4 ! localhost::2 localhost::2 ! localhost:25
-This is a simple test, forming 5 groups where balance is self referencing its own
-services 20 times. This
-is simply a test which definitely can be tried at home.
+.B $ balance.fm 8888 localhost::12 ! localhost::4 ! localhost::2 localhost::2 ! localhost:25
+This is a simple test, forming 5 groups where
+.I balance.fm
+is self referencing its own services 20 times. This is simply a test which
+definitely can be tried at home.
+.PP
+.TP
+.B $ balance.fm -m "connect:timeout=0.4:command=/bin/checksvc -s %S -p %P >/dev/null:pass=0,2:interval=10" 5432 svr1:5430 svr2:5430
+does round robin load balancing for two servers. However, it also runs
+a monitoring process that will do a health check for all servers every
+10 seconds. It will first attempt to connect to each server using a
+timeout of 400 milliseconds. For each server that it could connect to,
+it will then run the program /bin/checksvc with the server's IP address
+and port number. If the program finishes with exit codes 0 or 2, it
+will set the server's state to enabled, otherwise it will disable the
+server.
 .SH BUGS
 In case that
-.I balance
-is not able to forward the connection to any destination the
-inital connection to balance is always first accepted and
-then closed again immediately. This is not in every case the
-behaviour that would have been seen directly on the destination host.
-.SH AUTHOR
+.I balance.fm
+is not able to forward the connection to any destination, the
+inital connection to
+.I balance.fm
+is always first accepted and then closed again immediately. This is not in every
+case the behaviour that would have been seen directly on the destination host.
+.SH AUTHORS
+Marcus Holland-Moritz, Last.fm Ltd. (marcus@last.fm)
+.PP
 Thomas Obermair, Inlab Software GmbH (obermair@acm.org)
+.PP
+.I balance.fm
+is Copyright
+.if n (C)
+.if t \(co
+2012 by Marcus Holland-Moritz (marcus@last.fm) and Last.fm Ltd.
+(http://last.fm), London, UK.
 .PP
 Copyright (c) 2000-2009,2010 by Thomas Obermair (obermair@acm.org)
 and Inlab Software GmbH (http://www.inlab.de), Gruenwald, Germany.
 All rights reserved.
 .PP
-Balance is released under the GNU GENERAL PUBLIC LICENSE, see the file COPYING
+.I balance.fm
+is released under the GNU GENERAL PUBLIC LICENSE, see the file COPYING
 in the source code distribution.
