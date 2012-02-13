@@ -1,6 +1,8 @@
 /*
- * balance - a balancing tcp proxy
- * $Revision: 3.54 $
+ * balance.fm - a balancing tcp proxy
+ *
+ * Copyright (c) 2012-2009,2010 by Marcus Holland-Moritz (marcus@last.fm)
+ * and Last.fm Ltd. (http://last.fm), London, UK.
  *
  * Copyright (c) 2000-2009,2010 by Thomas Obermair (obermair@acm.org)
  * and Inlab Software GmbH (info@inlab.de), Gruenwald, Germany.
@@ -12,6 +14,12 @@
  * For license terms, see the file COPYING in this directory.
  *
  * This program is dedicated to Richard Stevens...
+ *
+ *  1.0.0
+ *    Forked balance.fm from balance 3.54; see debian/changelog for details
+ *    or get the lastest git repository from:
+ *
+ *         https://github.com/mhx/balance.fm
  *
  *  3.54
  *    fixed hash_fold bug regarding incoming IPv4 and IPv6 source addresses
@@ -365,7 +373,7 @@ static void *shm_malloc(const char *file, size_t size, bool create, int *p_shmid
 {
   char *data = NULL;
   key_t key;
-  int shmid;
+  int shmid = 0;
 
   if(shmmapfile){
 #ifndef NO_MMAP
@@ -391,7 +399,6 @@ static void *shm_malloc(const char *file, size_t size, bool create, int *p_shmid
         log_msg(LOG_WARNING, "Warning: Cannot map file `%s', switching to IPC", shmfile);
         close(shmfilefd);
         shmmapfile = 0;
-
       }
     }
 #endif
@@ -1051,6 +1058,7 @@ static void usage(void)
   fprintf(stderr,"|_.__/ \\__,_|_|\\__,_|_| |_|\\___\\___(_)_| |_| |_| |_|\n");
 
   fprintf(stderr, "  this is balance.fm %d.%d.%d\n", release, subrelease, patchlevel);
+  fprintf(stderr, "  Copyright (c) 2012 by Last.fm Ltd.\n");
   fprintf(stderr, "  Copyright (c) 2000-2009,2010\n");
   fprintf(stderr, "  by Inlab Software GmbH, Gruenwald, Germany.\n");
   fprintf(stderr, "  All rights reserved.\n");
