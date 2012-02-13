@@ -1,4 +1,22 @@
 
+Welcome to the balance.fm! 
+
+This is Last.fm's fork of the balance tool, offering some neat new
+features (like monitoring support) and bunch of bugfixes.
+
+See debian/changelog for a list of changes or just pull the repo from
+
+  https://github.com/mhx/balance.fm
+
+and use git log to see what has changed in even more detail.
+
+Find the original README of balance below.
+
+Enjoy,
+Marcus Holland-Moritz <marcus@last.fm>
+
+--8<------
+
 Welcome to the source code distribution of balance ! 
 
 Installation:
