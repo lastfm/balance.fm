@@ -1,5 +1,5 @@
 
-Welcome to the balance.fm! 
+Welcome to balance.fm!
 
 This is Last.fm's fork of the balance tool, offering some neat new
 features (like monitoring support) and bunch of bugfixes.
@@ -17,19 +17,19 @@ Marcus Holland-Moritz <marcus@last.fm>
 
 --8<------
 
-Welcome to the source code distribution of balance ! 
+Welcome to the source code distribution of balance !
 
 Installation:
 -------------
 
 Linux (i386/itanium), FreeBSD, BSD/OS:
-	make
-	make install
+        make
+        make install
 
 Solaris:
-	Uncomment the LIBRARY and INSTALL definitions in the Makefile.
-	make
-	make install
+        Uncomment the LIBRARY and INSTALL definitions in the Makefile.
+        make
+        make install
 
 If you have any problems just change the very simple Makefile to
 fit your needs. Shared memory should be enabled on your machine.
@@ -40,7 +40,6 @@ Information about new releases, mailing lists and other related issues
 can be found at the balance homepage http://balance.sourceforge.net .
 
 Reports of successful use of balance are appreciated.
- 
+
 Have fun...
 Thomas Obermair <obermair@acm.org>
-
