@@ -148,8 +148,8 @@ static volatile sig_atomic_t interrupted = 0;
 static char *bindhost = NULL;
 static char *outbindhost = NULL;
 
-static struct timeval sel_tmout  = { 0, 0 }; /* seconds, microseconds */
-static struct timeval save_tmout = { 0, 0 }; /* seconds, microseconds */
+static struct timespec sel_tmout  = { 0, 0 }; /* seconds, microseconds */
+static struct timespec save_tmout = { 0, 0 }; /* seconds, microseconds */
 
 static KEEPALIVE keepalive_server = { 0, 0, 0 };
 static KEEPALIVE keepalive_client = { 0, 0, 0 };
@@ -764,11 +764,12 @@ static void set_socket_options(int s, const KEEPALIVE *ka)
  *  as efficient as possible :-)
  */
 
-static void stream2(int clientfd, int serverfd, int groupindex, int channelindex)
+static int stream2(int clientfd, int serverfd, int groupindex, int channelindex, const sigset_t *orig_mask)
 {
   fd_set readfds;
   int fdset_width;
   int sr;
+  int exitcode = EX_OK;
 
   fdset_width = ((clientfd > serverfd) ? clientfd : serverfd) + 1;
 
@@ -786,44 +787,52 @@ static void stream2(int clientfd, int serverfd, int groupindex, int channelindex
      */
     sel_tmout = save_tmout;
 
-    for (;;) {
-      if (sel_tmout.tv_sec || sel_tmout.tv_usec) {
-        sr = select(fdset_width, &readfds, NULL, NULL, &sel_tmout);
+    while (!interrupted) {
+      if (sel_tmout.tv_sec || sel_tmout.tv_nsec) {
+        sr = pselect(fdset_width, &readfds, NULL, NULL, &sel_tmout, orig_mask);
       } else {
-        sr = select(fdset_width, &readfds, NULL, NULL, NULL);
+        sr = pselect(fdset_width, &readfds, NULL, NULL, NULL, orig_mask);
       }
-      if ((save_tmout.tv_sec || save_tmout.tv_usec) && !sr) {
-        c_writelock(groupindex, channelindex);
-        chn_c(common, groupindex, channelindex) -= 1;
-        c_unlock(groupindex, channelindex);
+
+      if ((save_tmout.tv_sec || save_tmout.tv_nsec) && !sr) {
         log_msg(LOG_ERR, "timed out after %d seconds", (int) save_tmout.tv_sec);
-        exit(EX_UNAVAILABLE);
-      }
-      if (sr < 0 && errno != EINTR) {
-        log_perror(LOG_ERR, "select");
-        c_writelock(groupindex, channelindex);
-        chn_c(common, groupindex, channelindex) -= 1;
-        c_unlock(groupindex, channelindex);
-        exit(EX_UNAVAILABLE);
-      }
-      if (sr > 0)
+        exitcode = EX_UNAVAILABLE;
         break;
+      }
+
+      if (sr < 0 && errno != EINTR) {
+        log_perror(LOG_ERR, "pselect");
+        exitcode = EX_UNAVAILABLE;
+        break;
+      }
+
+      if (sr > 0) {
+        break;
+      }
+    }
+
+    if (interrupted || exitcode != EX_OK) {
+      break;
     }
 
     if (FD_ISSET(clientfd, &readfds)) {
       if (forward(clientfd, serverfd, groupindex, channelindex) < 0) {
         break;
       }
-    } else {
+    }
+
+    if (FD_ISSET(serverfd, &readfds)) {
       if (backward(serverfd, clientfd, groupindex, channelindex) < 0) {
         break;
       }
     }
   }
+
   c_writelock(groupindex, channelindex);
-  chn_c(common, groupindex, channelindex) -= 1;
+  chn_c(common, groupindex, channelindex)--;
   c_unlock(groupindex, channelindex);
-  exit(EX_OK);
+
+  return exitcode;
 }
 
 static void alrm_handler(int signo __attribute__((unused)))
@@ -852,17 +861,16 @@ static void chld_handler(int signo __attribute__((unused)))
  * a channel in a group is selected and we try to establish a connection
  */
 
-static void *stream(int arg, int groupindex, int index, const void *client_address,
-                    int client_address_size)
+static int stream(int clientfd, int groupindex, int index, const void *client_address,
+                  int client_address_size, const sigset_t *orig_mask)
 {
   int startindex;
   int sockfd;
-  int clientfd;
+  int exitcode = EX_OK;
   struct sigaction alrm_action;
   struct sockaddr_in serv_addr;
 
   startindex = index;           // lets keep where we start...
-  clientfd = arg;
 
   for (;;) {
 
@@ -870,7 +878,8 @@ static void *stream(int arg, int groupindex, int index, const void *client_addre
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
       log_perror(LOG_ERR, "socket");
-      exit(EX_OSERR);
+      exitcode = EX_OSERR;
+      break;
     }
 
     (void) setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &sockbufsize,
@@ -1013,8 +1022,8 @@ static void *stream(int arg, int groupindex, int index, const void *client_addre
         // lets try it again
         close(sockfd);
         c_writelock(groupindex, index);
-        chn_c(common, groupindex, index) += 1;
-        chn_tc(common, groupindex, index) += 1;
+        chn_c(common, groupindex, index)++;
+        chn_tc(common, groupindex, index)++;
         c_unlock(groupindex, index);
         continue;
       } else {
@@ -1037,15 +1046,17 @@ static void *stream(int arg, int groupindex, int index, const void *client_addre
 
       // everything's fine ...
 
-      stream2(clientfd, sockfd, groupindex, index);
-      // stream2 bekommt den Channel-Index mit
-      // stream2 never returns, but just in case...
+      exitcode = stream2(clientfd, sockfd, groupindex, index, orig_mask);
+
       break;
     }
   }
 
-  close(sockfd);
-  exit(EX_OK);
+  if (sockfd >= 0) {
+    close(sockfd);
+  }
+
+  return exitcode;
 }
 
 static void usage(void)
@@ -2103,7 +2114,7 @@ int main(int argc, char *argv[])
       break;
     case 'T':
       sel_tmout.tv_sec = atoi(optarg);
-      sel_tmout.tv_usec = 0;
+      sel_tmout.tv_nsec = 0;
       if (sel_tmout.tv_sec < 1)
         usage();
       save_tmout = sel_tmout;
@@ -2453,8 +2464,7 @@ int main(int argc, char *argv[])
         close(sockfd);                  // close original socket
         // process the request:
 
-        stream(newsockfd, groupindex, index, &cli_addr, clilen);
-        exit(EX_OK);
+        return stream(newsockfd, groupindex, index, &cli_addr, clilen, &orig_mask);
       }
     }
 
