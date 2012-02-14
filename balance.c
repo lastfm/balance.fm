@@ -2313,7 +2313,6 @@ int main(int argc, char *argv[])
   while (!interrupted) {
     int index;
     unsigned int uindex;
-    int groupindex = 0;         // always start at groupindex 0
 
     clilen = sizeof(cli_addr);
 
@@ -2344,8 +2343,11 @@ int main(int argc, char *argv[])
      *
      */
 
+    int groupindex = 0;
+
     b_writelock();
-    for (;;) {
+
+    for (; groupindex < MAXGROUPS; groupindex++) {
       index = grp_current(common, groupindex);
       for (;;) {
         if (grp_type(common, groupindex) == GROUP_RR) {
@@ -2430,11 +2432,6 @@ int main(int argc, char *argv[])
         chn_c(common, groupindex, index)++;     // we promise a successful connection
         chn_tc(common, groupindex, index)++;    // also incrementing the total count
         break;                                  // index in this group found
-      } else {
-        groupindex++;                           // try next group !
-        if (groupindex >= MAXGROUPS) {
-          break;                                // end of groups...
-        }
       }
     }
 
