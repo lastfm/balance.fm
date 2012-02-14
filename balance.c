@@ -559,15 +559,32 @@ static void print_packet(const unsigned char *s, int l)
   printf("\n");
 }
 
-static int getport(const char *port)
+static bool safe_atoi(int *result, const char *str)
+{
+  char *end;
+  int i = strtol(str, &end, 0);
+  if (end > str && *end == '\0') {
+    *result = i;
+    return true;
+  }
+  return false;
+}
+
+static bool getport(int *result, const char *port)
 {
   struct servent *sp;
   sp = getservbyname(port, "tcp");
   if (sp == NULL) {
-    return (atoi(port));
-  } else {
-    return (ntohs(sp->s_port));
+    int i;
+    if (safe_atoi(&i, port) && i > 0) {
+      *result = i;
+      return true;
+    }
+    log_msg(LOG_ERR, "invalid port number [%s]", port);
+    return false;
   }
+  *result = ntohs(sp->s_port);
+  return true;
 }
 
 static void setipaddress(struct in_addr *ipaddr, const char *string)
@@ -584,100 +601,82 @@ static void setipaddress(struct in_addr *ipaddr, const char *string)
   }
 }
 
-static void setaddress(struct in_addr *ipaddr, int *port, const char *string,
-                       int default_port, int *maxc)
-{
-  char *host_string = NULL;
-  char *port_string = NULL;
-  char *maxc_string = NULL;
-  char *dup_string = NULL;
-  char *p = NULL;
-  char *q = NULL;
-
-  struct hostent *hent;
-
-  if ((dup_string = strdup(string)) == NULL) {
-    log_perror(LOG_ERR, "strdup");
-    exit(EX_OSERR);
-  }
-
-  host_string = dup_string;
-  p = index(dup_string, ':');
-
-  if (p != NULL) {
-    *p = '\000';
-    port_string = p + 1;
-    if ((q = index(port_string, ':')) != NULL) {
-      *q = '\000';
-      maxc_string = q + 1;
-    } else {
-      maxc_string = "";
-    }
-  } else {
-    port_string = "";
-    maxc_string = "";
-  }
-
-  // fix for RedHat 7.0/7.1 choke on strcmp with NULL
-
-  if (port_string != NULL && !strcmp(port_string, ""))
-    port_string = NULL;
-  if (maxc_string != NULL && !strcmp(maxc_string, ""))
-    maxc_string = NULL;
-
-  hent = gethostbyname(dup_string);
-  if (hent == NULL) {
-    if ((ipaddr->s_addr = inet_addr(dup_string)) == INADDR_NONE) {
-      log_msg(LOG_ERR, "unknown or invalid address [%s]", dup_string);
-      exit(EX_DATAERR);
-    }
-  } else {
-    memcpy(ipaddr, hent->h_addr, hent->h_length);
-  }
-
-  if (port_string != NULL) {
-    *port = getport(port_string);
-  } else {
-    *port = default_port;
-  }
-
-  if (maxc_string != NULL) {
-    *maxc = atoi(maxc_string);
-  }
-  free(dup_string);
-}
-
-static int setaddress_noexitonerror(struct in_addr *ipaddr, int *port,
-                                    const char *string, int default_port)
+static bool setaddress(struct in_addr *ipaddr, int *port, const char *string,
+                       int default_port, int *maxc, bool exit_on_error)
 {
   char *dup_string = strdup(string);
 
   if (dup_string == NULL) {
-    return 0;
+    log_perror(LOG_ERR, "strdup");
+    if (exit_on_error) {
+      exit(EX_OSERR);
+    }
+    return false;
   }
 
-  char *host_string = strtok(dup_string, ":");
-  char *port_string = strtok(NULL, ":");
+  const char *host_string = dup_string;
+  const char *port_string = NULL;
+  const char *maxc_string = NULL;
+
+  char *p = index(dup_string, ':');
+
+  if (p != NULL) {
+    *p = '\0';
+    port_string = p + 1;
+    p = index(port_string, ':');
+    if (p != NULL) {
+      *p = '\0';
+      maxc_string = p + 1;
+    }
+  }
+
   struct hostent *hent = gethostbyname(host_string);
+  int exitcode = 0;
+  in_addr_t in_addr = INADDR_NONE;
+  int portnum = default_port;
+  int maxcnum = 0;
 
   if (hent == NULL) {
-    if ((ipaddr->s_addr = inet_addr(string)) == INADDR_NONE) {
-      free(dup_string);
-      return 0;
+    in_addr = inet_addr(host_string);
+    if (in_addr == INADDR_NONE) {
+      log_msg(LOG_ERR, "unknown or invalid address [%s]", dup_string);
+      exitcode = EX_DATAERR;
     }
-  } else {
-    memcpy(ipaddr, hent->h_addr, hent->h_length);
   }
 
-  if (port_string != NULL) {
-    *port = getport(port_string);
-  } else {
-    *port = default_port;
+  if (exitcode == 0 && port_string != NULL) {
+    if (!getport(&portnum, port_string)) {
+      exitcode = EX_DATAERR;
+    }
+  }
+
+  if (exitcode == 0 && maxc_string != NULL) {
+    if (!safe_atoi(&maxcnum, maxc_string)) {
+      log_msg(LOG_ERR, "invalid max connections [%s]", maxc_string);
+      exitcode = EX_DATAERR;
+    }
   }
 
   free(dup_string);
 
-  return 1;
+  if (exitcode == 0) {
+    if (hent != NULL) {
+      memcpy(ipaddr, hent->h_addr, hent->h_length);
+    } else {
+      ipaddr->s_addr = in_addr;
+    }
+    *port = portnum;
+    if (maxc) {
+      *maxc = maxcnum;
+    }
+    return true;
+  }
+
+  if (exit_on_error) {
+    exit(exitcode);
+  }
+
+  return false;
 }
 
 static int forward(int fromfd, int tofd, int groupindex, int channelindex)
@@ -1214,7 +1213,7 @@ static COMMON *makecommon(int argc, char **argv, int source_port, int *p_shmid)
       setaddress(&chn_ipaddr(mycommon, group, channel),
                  &chn_port(mycommon, group, channel),
                  argv[i],
-                 source_port, &chn_maxc(mycommon, group, channel));
+                 source_port, &chn_maxc(mycommon, group, channel), true);
       chn_bsent(mycommon, group, channel) = 0;
       chn_breceived(mycommon, group, channel) = 0;
 
@@ -1495,25 +1494,28 @@ static void shell(const char *argument)
         } else {
           if ((arg1 = strtok(NULL, " \t\n")) != NULL) {
             if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
-              chn_status(common, currentgroup,
-                         grp_nchannels(common, currentgroup)) = CS_DISABLED;
-              if (setaddress_noexitonerror
-                  (&chn_ipaddr
-                   (common, currentgroup,
-                    grp_nchannels(common, currentgroup)), &chn_port(common,
-                                                                    currentgroup,
-                                                                    grp_nchannels
-                                                                    (common,
-                                                                     currentgroup)),
-                   arg1, getport(arg2))) {
-                chn_bsent(common, currentgroup,
-                          grp_nchannels(common, currentgroup)) = 0;
-                chn_breceived(common, currentgroup,
-                              grp_nchannels(common, currentgroup)) = 0;
-                grp_nchannels(common, currentgroup)++;
-                printf("channel created\n");
-              } else {
-                printf("invalid address\n");
+              int port;
+              if (getport(&port, arg2)) {
+                chn_status(common, currentgroup,
+                           grp_nchannels(common, currentgroup)) = CS_DISABLED;
+                if (setaddress
+                    (&chn_ipaddr
+                     (common, currentgroup,
+                      grp_nchannels(common, currentgroup)), &chn_port(common,
+                                                                      currentgroup,
+                                                                      grp_nchannels
+                                                                      (common,
+                                                                       currentgroup)),
+                     arg1, port, NULL, false)) {
+                  chn_bsent(common, currentgroup,
+                            grp_nchannels(common, currentgroup)) = 0;
+                  chn_breceived(common, currentgroup,
+                                grp_nchannels(common, currentgroup)) = 0;
+                  grp_nchannels(common, currentgroup)++;
+                  printf("channel created\n");
+                } else {
+                  printf("invalid address\n");
+                }
               }
             } else {
               printf("syntax error\n");
@@ -1538,13 +1540,16 @@ static void shell(const char *argument)
                printf("channel must be disabled to assign new address\n");
             } else if ((arg2 = strtok(NULL, " \t\n")) != NULL) {
                 if ((arg3 = strtok(NULL, " \t\n")) != NULL) {
-                   if (setaddress_noexitonerror
-                         (&chn_ipaddr(common, currentgroup, chn),
-                          &chn_port(common, currentgroup, chn),
-                          arg2, getport(arg3))) {
-                       printf("channel reassigned\n");
-                   } else {
-                       printf("invalid address\n");
+                   int port;
+                   if (getport(&port, arg3)) {
+                     if (setaddress
+                           (&chn_ipaddr(common, currentgroup, chn),
+                            &chn_port(common, currentgroup, chn),
+                            arg2, port, NULL, false)) {
+                         printf("channel reassigned\n");
+                     } else {
+                         printf("invalid address\n");
+                     }
                    }
                 } else {
                    printf("syntax error\n");
@@ -2205,8 +2210,7 @@ int main(int argc, char *argv[])
 
   // get the source port
 
-  if ((source_port = getport(argv[0])) == 0) {
-    fprintf(stderr, "invalid port [%s], exiting.\n", argv[0]);
+  if (!getport(&source_port, argv[0])) {
     exit(EX_USAGE);
   }
 
@@ -2425,7 +2429,6 @@ int main(int argc, char *argv[])
       if (index >= 0) {
         chn_c(common, groupindex, index)++;     // we promise a successful connection
         chn_tc(common, groupindex, index)++;    // also incrementing the total count
-        // c++
         break;                                  // index in this group found
       } else {
         groupindex++;                           // try next group !
