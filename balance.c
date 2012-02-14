@@ -143,7 +143,7 @@ static int sockbufsize = 32768;
 
 static int connect_timeout;
 
-static sig_atomic_t interrupted = 0;
+static volatile sig_atomic_t interrupted = 0;
 
 static char *bindhost = NULL;
 static char *outbindhost = NULL;
