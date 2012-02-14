@@ -2444,6 +2444,12 @@ int main(int argc, char *argv[])
         // but main process stays alive !
 
         log_perror(LOG_INFO, "fork");
+
+        // let's just pretend this never happened
+        c_writelock(groupindex, index);
+        chn_c(common, groupindex, index)--;
+        chn_tc(common, groupindex, index)--;
+        c_unlock(groupindex, index);
       } else if (childpid == 0) {       // child process
         close(sockfd);                  // close original socket
         // process the request:
