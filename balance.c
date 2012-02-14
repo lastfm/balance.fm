@@ -1925,7 +1925,7 @@ static void monitor_run(const struct monitor_spec *ms)
   }
 }
 
-static void monitor_loop(const struct monitor_spec *ms)
+static void monitor_loop(const struct monitor_spec *ms, const sigset_t *orig_mask)
 {
   struct timeval next;
 
@@ -1961,19 +1961,17 @@ static void monitor_loop(const struct monitor_spec *ms)
       } while (now.tv_sec > next.tv_sec || (now.tv_sec == next.tv_sec && now.tv_usec >= next.tv_usec));
     }
 
-    struct timeval wait;
+    struct timespec wait;
 
     if (now.tv_usec > next.tv_usec) {
-      wait.tv_usec = (next.tv_usec + 1000000) - now.tv_usec;
+      wait.tv_nsec = 1000*((next.tv_usec + 1000000) - now.tv_usec);
       wait.tv_sec = (next.tv_sec - 1) - now.tv_sec;
     } else {
-      wait.tv_usec = next.tv_usec - now.tv_usec;
+      wait.tv_nsec = 1000*(next.tv_usec - now.tv_usec);
       wait.tv_sec = next.tv_sec - now.tv_sec;
     }
 
-    if (!interrupted) {
-      select(0, NULL, NULL, NULL, &wait);
-    }
+    pselect(0, NULL, NULL, NULL, &wait, orig_mask);
   }
 }
 
@@ -1996,15 +1994,16 @@ static struct monitor_spec *monitor_prepare(const char *spec)
   return ms;
 }
 
-static void monitor_start(struct monitor_spec *ms)
+static void monitor_start(struct monitor_spec *ms, const sigset_t *orig_mask)
 {
   if (ms) {
     int childpid;
     if ((childpid = fork()) < 0) {
       log_perror(LOG_INFO, "fork");
     } else if (childpid == 0) {
-      monitor_loop(ms);
+      monitor_loop(ms, orig_mask);
       monitor_spec_free(ms);
+      debug("monitor process is terminating...\n");
       exit(EX_OK);
     }
 
@@ -2291,10 +2290,6 @@ int main(int argc, char *argv[])
 
   common = makecommon(argc, argv, source_port, &shmid);
 
-  // fork off monitoring process
-
-  monitor_start(mon_spec);
-
   sigset_t block_mask, orig_mask;
   sigemptyset(&block_mask);
   sigaddset(&block_mask, SIGTERM);
@@ -2305,6 +2300,10 @@ int main(int argc, char *argv[])
     log_perror(LOG_ERR, "sigprocmask");
     return 1;
   }
+
+  // fork off monitoring process
+
+  monitor_start(mon_spec, &orig_mask);
 
   fd_set fds;
   FD_ZERO(&fds);
@@ -2466,7 +2465,7 @@ int main(int argc, char *argv[])
 
   shm_destroy(shmid);
 
-  debug("terminating\n");
+  debug("master process is terminating\n");
 
   return 0;
 }
