@@ -173,7 +173,7 @@ struct monitor_spec *monitor_spec_parse(const char *str, const struct monitor_de
       if (*end) {
         err_dump("error parsing timeout");
       }
-      if (cur_ma->u.connect.timeout < 1e-3f || cur_ma->u.connect.timeout > 60.0f) {
+      if (cur_ma->u.connect.timeout < 1e-6f) {
         err_dump("timeout outside of supported range");
       }
       free(v);

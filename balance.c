@@ -1764,8 +1764,11 @@ static void monitor_connect(struct monitor_info *minfo, size_t num, const struct
       exit(EX_OSERR);  /* if this really happens, we're screwed anyway */
     }
 
-    end.tv_usec += (suseconds_t) (1e6f*ma->u.connect.timeout);
-    end.tv_sec += end.tv_usec/1000000;
+    time_t connect_timeout_seconds = ma->u.connect.timeout;
+    float connect_timeout_subsecond = ma->u.connect.timeout - connect_timeout_seconds;
+
+    end.tv_usec += (suseconds_t) (1e6f*connect_timeout_subsecond);
+    end.tv_sec += end.tv_usec/1000000 + connect_timeout_seconds;
     end.tv_usec %= 1000000;
 
     while (pending > 0) {
