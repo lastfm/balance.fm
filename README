@@ -6,7 +6,7 @@ features (like monitoring support) and bunch of bugfixes.
 
 See debian/changelog for a list of changes or just pull the repo from
 
-  https://github.com/mhx/balance.fm
+  https://github.com/lastfm/balance.fm
 
 and use git log to see what has changed in even more detail.
 

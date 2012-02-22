@@ -19,7 +19,7 @@
  *    Forked balance.fm from balance 3.54; see debian/changelog for details
  *    or get the lastest git repository from:
  *
- *         https://github.com/mhx/balance.fm
+ *         https://github.com/lastfm/balance.fm
  *
  *  3.54
  *    fixed hash_fold bug regarding incoming IPv4 and IPv6 source addresses
