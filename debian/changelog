@@ -1,3 +1,11 @@
+balance.fm (1.0.1) unstable; urgency=low
+
+  * Update repo link in manpage
+  * Transfer repository to lastfm organization
+  * Fix manpage installation issues
+
+ -- Marcus Holland-Moritz <marcus@last.fm>  Wed, 04 Jul 2012 10:22:25 +0000
+
 balance.fm (1.0.0) unstable; urgency=low
 
   * Initial release, based on balance 3.54
