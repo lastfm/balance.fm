@@ -12,3 +12,6 @@ endif
 
 %:
 	dh $@
+
+override_dh_installman:
+	dh_installman --language=C
