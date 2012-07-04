@@ -2,7 +2,7 @@ Source: balance.fm
 Section: admin
 Priority: optional
 Maintainer: Marcus Holland-Moritz <marcus@last.fm>
-Build-Depends: debhelper (>= 7)
+Build-Depends: debhelper (>= 8)
 Standards-Version: 3.9.1
 
 Package: balance.fm
